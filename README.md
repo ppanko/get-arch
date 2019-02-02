@@ -3,7 +3,7 @@ Install and configure Arch Linux. Just need to log in as root, configure an inte
 
 ## Retrieve 
 - Install git: `pacman -Sy git`
-- Retrieve the script: `git clone git://github.com/ppanko/get-arch`
+- Retrieve the script: `git clone git://github.com/ppanko/get-arch.git`
 
 ## Run either script using the following: 
 - `cd get-arch && ./${FILENAME}`
