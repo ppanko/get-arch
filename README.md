@@ -8,4 +8,6 @@ Install and configure Arch Linux. Just need to log in as root, configure an inte
 ## Run either script using the following: 
 - `cd get-arch && ./${FILENAME}`
 
+&nbsp;
+
 Extra special thanks to Riyyi for sharing the original version of this script. 
