@@ -1,0 +1,86 @@
+#!/bin/bash
+
+if [[ -f `pwd`/sharedfuncs ]]; then
+  source sharedfuncs
+else
+  echo "Missing file: sharedfuncs"
+  exit 1
+fi
+
+# VARIABLES
+  CONNECTION="wired"         #(wired/wireless)
+  LOCALE="en_US"
+  KEYMAP="us"               #(us)
+  TIMEZONE="America/Chicago"
+  HARDWARECLOCK="utc"           #(utc/localtime)
+  HOSTNAME="arch-5489"
+  INSTALLPARTITION="sda"        #(sda/sdb/sdc)
+
+# COMMON FUNCTIONS
+  arch_chroot() {
+    arch-chroot $MOUNTPOINT /bin/bash -c "${1}"
+  }
+
+check_connection $CONNECTION
+
+# Update mirrorlist
+pacman -Sy
+
+# Install the base system
+pacstrap ${MOUNTPOINT} base base-devel linux-headers
+
+case "$CONNECTION" in
+  wired)
+    arch_chroot "systemctl enable dhcpcd@${WIRED_DEV}.service"
+    ;;
+  wireless)
+    pacstrap ${MOUNTPOINT} iw wireless_tools wpa_actiond wpa_supplicant dialog
+    ;;
+esac
+
+# Generate an fstab
+genfstab -U -p ${MOUNTPOINT} >> ${MOUNTPOINT}/etc/fstab
+nano ${MOUNTPOINT}/etc/fstab
+
+# Generate swap file
+fallocate -L 512M ${MOUNTPOINT}/swapfile
+chmod 600 ${MOUNTPOINT}/swapfile
+mkswap ${MOUNTPOINT}/swapfile
+swapon ${MOUNTPOINT}/swapfile
+echo `/swapfile none swap defaults 00` >> ${MOUNTPOINT}/etc/fstab
+
+# Locale
+arch_chroot "sed -i '/'${LOCALE}.UTF-8'/s/^#//' /etc/locale.gen"
+arch_chroot "locale-gen"
+echo LANG=${LOCALE}.UTF-8 > ${MOUNTPOINT}/etc/locale.conf
+export LANG=${LOCALE}.UTF-8
+
+# Console keymap
+echo "KEYMAP=${KEYMAP}" > ${MOUNTPOINT}/etc/vconsole.conf
+
+# Time zone
+arch_chroot "ln -s /usr/share/zoneinfo/${TIMEZONE} /etc/localtime"
+
+# Hardware clock
+arch_chroot "hwclock --systohc --${HARDWARECLOCK}"
+
+# Hostname
+echo ${HOSTNAME} > ${MOUNTPOINT}/etc/hostname
+arch_chroot "sed -i '/127.0.0.1/s/$/ '${HOSTNAME}'/' /etc/hosts"
+arch_chroot "sed -i '/::1/s/$/ '${HOSTNAME}'/' /etc/hosts"
+
+# Create an initial ramdisk environment
+arch_chroot "mkinitcpio -p linux"
+
+# Install and configure a bootloader
+pacstrap ${MOUNTPOINT} grub os-prober
+arch_chroot "grub-install --target=i386-pc --recheck /dev/${INSTALLPARTITION}"
+arch_chroot "grub-mkconfig -o /boot/grub/grub.cfg"
+
+# Set the root password
+echo "${BLUE}Enter your new root password${RESET}"
+arch_chroot "passwd"
+
+read -p "${BLUE}Reboot system? [y/N]${RESET} " x
+[[ $x == "y" ]] || [[ $x == "Y" ]] || [[ -z $x ]] && reboot
+exit 0
