@@ -44,29 +44,29 @@ fi
     chown -R ${username}:users /home/${username}
   }
 
-  # Install Yaourt
+  # Install Pacaur
   install_aurhelper() {
-    if ! is_package_installed "yaourt" ; then
+    if ! is_package_installed "pacaur" ; then
       package_install "base-devel yajl namcap"
       pacman -D --asdeps yajl namcap
-      aui_download_packages "package-query yaourt"
+      aui_download_packages "package-query pacaur"
       pacman -D --asdeps package-query
-      if ! is_package_installed "yaourt" ; then
-        echo "${RED}Yaourt not installed.${RESET}"
+      if ! is_package_installed "pacaur" ; then
+        echo "${RED}Pacaur not installed.${RESET}"
         exit 0
       fi
     fi
-    AUR_PKG_MANAGER="yaourt"
+    AUR_PKG_MANAGER="pacaur"
   }
 
   install_basic_setup() {
     # (Un)compress tools
-    package_install "file-roller zip unzip unrar p7zip xarchiver"
+    package_install "file-roller zip unzip unrar"
 
     # ALSA + PulseAudio
     package_install "alsa-utils alsa-plugins"
     [[ ${ARCHI} == x86_64 ]] && package_install "lib32-alsa-plugins"
-    package_install "pulseaudio pulseaudio-alsa kdemultimedia-kmix"
+    package_install "pulseaudio pulseaudio-alsa"
     [[ ${ARCHI} == x86_64 ]] && package_install "lib32-libpulse"
     # automatically switch to newly-connected devices
     add_line "load-module module-switch-on-connect" "/etc/pulse/default.pa"
@@ -215,12 +215,12 @@ fi
     install_xorg
     install_video_cards
     font_config
-    install_cups
-    install_additional_firmwares
+    # install_cups
+    # install_additional_firmwares
 
     # Desktop Environment
     install_desktop_environment
-    install_nm_wicd
+    # install_nm_wicd
 
     install_x_extras
     [[ $DEVICETYPE == "desktop" ]] && install_desktop_extras
