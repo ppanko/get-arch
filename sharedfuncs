@@ -179,7 +179,7 @@
         tar zxvf $PKG.tar.gz
         rm $PKG.tar.gz
         cd $PKG
-        makepkg -csi --noconfirm
+        makepkg -csi --noconfirm --skippgpcheck
       "
     done
   }

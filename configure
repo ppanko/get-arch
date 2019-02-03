@@ -44,19 +44,19 @@ fi
     chown -R ${username}:users /home/${username}
   }
 
-  # Install Pacaur
+  # Install Yaourt
   install_aurhelper() {
-    if ! is_package_installed "pacaur" ; then
+    if ! is_package_installed "yaourt" ; then
       package_install "base-devel yajl namcap"
       pacman -D --asdeps yajl namcap
-      aui_download_packages "package-query pacaur"
+      aui_download_packages "package-query yaourt"
       pacman -D --asdeps package-query
-      if ! is_package_installed "pacaur" ; then
-        echo "${RED}Pacaur not installed.${RESET}"
+      if ! is_package_installed "yaourt" ; then
+        echo "${RED}Yaourt not installed.${RESET}"
         exit 0
       fi
     fi
-    AUR_PKG_MANAGER="pacaur"
+    AUR_PKG_MANAGER="yaourt"
   }
 
   install_basic_setup() {
