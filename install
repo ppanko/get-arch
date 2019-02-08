@@ -13,7 +13,7 @@ fi
   KEYMAP="us"               #(us)
   TIMEZONE="America/Chicago"
   HARDWARECLOCK="utc"           #(utc/localtime)
-  HOSTNAME="arch-5489"
+  HOSTNAME="arch-5480"
   INSTALLPARTITION="sda"        #(sda/sdb/sdc)
 
 # COMMON FUNCTIONS
@@ -43,7 +43,7 @@ genfstab -U -p ${MOUNTPOINT} >> ${MOUNTPOINT}/etc/fstab
 nano ${MOUNTPOINT}/etc/fstab
 
 # Generate swap file
-fallocate -L 512M ${MOUNTPOINT}/swapfile
+dd if=/dev/zero of=${MOUNTPOINT}/swapfile bs=1M count=512 status=progress
 chmod 600 ${MOUNTPOINT}/swapfile
 mkswap ${MOUNTPOINT}/swapfile
 swapon ${MOUNTPOINT}/swapfile
