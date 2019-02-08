@@ -43,7 +43,8 @@ genfstab -U -p ${MOUNTPOINT} >> ${MOUNTPOINT}/etc/fstab
 nano ${MOUNTPOINT}/etc/fstab
 
 # Generate swap file
-dd if=/dev/zero of=${MOUNTPOINT}/swapfile bs=1M count=512 status=progress
+## dd if=/dev/zero of=${MOUNTPOINT}/swapfile bs=1M count=512 status=progress
+fallocate -l 512M ${MOUNTPOINT}/swapfile
 chmod 600 ${MOUNTPOINT}/swapfile
 mkswap ${MOUNTPOINT}/swapfile
 swapon ${MOUNTPOINT}/swapfile
@@ -75,6 +76,9 @@ arch_chroot "mkinitcpio -p linux"
 # Install and configure a bootloader
 pacstrap ${MOUNTPOINT} grub os-prober
 arch_chroot "grub-install --target=i386-pc --recheck /dev/${INSTALLPARTITION}"
+mkdir ${MOUNTPOINT}/hostlvm
+mount --bind /run/lvm /mnt/hostlvm
+arch_chroot "ln -s /hostlvm /run/lvm"
 arch_chroot "grub-mkconfig -o /boot/grub/grub.cfg"
 
 # Set the root password
