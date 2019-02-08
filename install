@@ -48,7 +48,7 @@ fallocate -l 512M ${MOUNTPOINT}/swapfile
 chmod 600 ${MOUNTPOINT}/swapfile
 mkswap ${MOUNTPOINT}/swapfile
 swapon ${MOUNTPOINT}/swapfile
-echo `/swapfile none swap defaults 00` >> ${MOUNTPOINT}/etc/fstab
+echo "/swapfile none swap defaults 00" >> ${MOUNTPOINT}/etc/fstab
 
 # Locale
 arch_chroot "sed -i '/'${LOCALE}.UTF-8'/s/^#//' /etc/locale.gen"
