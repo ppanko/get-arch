@@ -190,7 +190,6 @@ fi
     echo -ne "${BLUE}Deleting unneeded packages${RESET}"
     pacman -Rsc --noconfirm $(pacman -Qqdt) >>"$LOG" 2>&1 &
     PID=$!;progress $PID
-    pacman-optimize
   }
 
 # BEFOREHAND CHECKS
@@ -214,7 +213,7 @@ fi
     install_tlp
     install_xorg
     install_video_cards
-    font_config
+    # font_config
     # install_cups
     # install_additional_firmwares
 
@@ -222,7 +221,7 @@ fi
     install_desktop_environment
     # install_nm_wicd
 
-    install_x_extras
+    # install_x_extras
     [[ $DEVICETYPE == "desktop" ]] && install_desktop_extras
     [[ $DEVICETYPE == "laptop" ]] && install_laptop_extras
 
