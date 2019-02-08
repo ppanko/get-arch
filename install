@@ -40,7 +40,7 @@ esac
 
 # Generate an fstab
 genfstab -U -p ${MOUNTPOINT} >> ${MOUNTPOINT}/etc/fstab
-nano ${MOUNTPOINT}/etc/fstab
+# nano ${MOUNTPOINT}/etc/fstab
 
 # Generate swap file
 ## dd if=/dev/zero of=${MOUNTPOINT}/swapfile bs=1M count=512 status=progress
