@@ -82,6 +82,8 @@ arch_chroot "grub-mkconfig -o /boot/grub/grub.cfg"
 echo "${BLUE}Enter your new root password${RESET}"
 arch_chroot "passwd"
 
+umount ${MOUNTPOINT}
+
 read -p "${BLUE}Reboot system? [y/N]${RESET} " x
 [[ $x == "y" ]] || [[ $x == "Y" ]] || [[ -z $x ]] && reboot
 exit 0
