@@ -76,6 +76,7 @@ arch_chroot "mkinitcpio -p linux"
 # Install and configure a bootloader
 pacstrap ${MOUNTPOINT} grub os-prober
 arch_chroot "grub-install --target=i386-pc --recheck /dev/${INSTALLPARTITION}"
+nano ${MOUNTPOINT}/etc/default/grub
 arch_chroot "grub-mkconfig -o /boot/grub/grub.cfg"
 
 # Set the root password

@@ -44,19 +44,18 @@ fi
     chown -R ${username}:users /home/${username}
   }
 
-  # Install Yaourt
+  # Install Pakku
   install_aurhelper() {
-    if ! is_package_installed "yaourt" ; then
-      package_install "base-devel yajl namcap"
-      pacman -D --asdeps yajl namcap
-      aui_download_packages "package-query yaourt"
-      pacman -D --asdeps package-query
-      if ! is_package_installed "yaourt" ; then
-        echo "${RED}Yaourt not installed.${RESET}"
+    if ! is_package_installed "pakku" ; then
+      package_install "base-devel nim pakku"
+      aui_download_packages "pakku"
+      pacman -D --asdeps nim
+      if ! is_package_installed "pakku" ; then
+        echo "${RED}Pakku not installed.${RESET}"
         exit 0
       fi
     fi
-    AUR_PKG_MANAGER="yaourt"
+    AUR_PKG_MANAGER="pakku"
   }
 
   install_basic_setup() {
@@ -90,7 +89,7 @@ fi
 
   install_xorg() {
     package_install "
-    xorg-server xorg-server-utils
+    xorg-server 
     xf86-input-synaptics xf86-input-mouse xf86-input-keyboard
     mesa
     "
@@ -143,37 +142,32 @@ fi
 
   install_desktop_environment() {
     # Setup KDE
-    package_install "kf5 kf5-aids plasma sddm kde-gtk-config oxygen-gtk2 oxygen-gtk3 libappindicator-gtk2 libappindicator-gtk3 sni-qt lib32-sni-qt k3b kdesu"
+    package_install "kf5 kf5-aids plasma sddm kde-gtk-config oxygen-gtk2 oxygen-gtk3 libappindicator-gtk2 libappindicator-gtk3 kdesu konsole dolphin"
     is_package_installed "cups" && package_install "kdeutils-print-manager"
     aur_package_install "flattr-icons-kde"
-    system_ctl enable sddm
+    systemctl enable sddm
 
-    # Remove the Cashew
-    rm /usr/share/kde4/services/plasma-toolbox-desktoptoolbox.desktop
-    rm /usr/share/kde4/services/plasma-toolbox-nettoolbox.desktop
-    rm /usr/share/kde4/services/plasma-toolbox-paneltoolbox.desktop
-
-    # Homerun launcher
-    aur_package_install "kdeplasma-applets-homerun"
+    ##    
+    echo -e "[Autologin]\nUser=john\nSession=plasma.desktop" >> /etc/sddm.conf.d/autologin.conf
   }
 
   # Wireless internet front-end
   install_nm_wicd() {
-    package_install "networkmanager kdeplasma-applets-plasma-nm"
+    package_install "networkmanager"
     system_ctl enable NetworkManager
   }
 
   # Install extra applications used in a normal desktop environment
   install_x_extras() {
-    package_install "steam mpv livestreamer youtube-dl thunderbird qtcreator cmake flashplugin gparted screenfetch scrot"
-    aur_package_install "qbittorrent firefox-kde-opensuse"
+    package_install "libreoffice-fresh chromium gsl emacs gimp texlive-core flashplugin vlc tcl tk gcc-fortran jdk8-openjdk virtualbox virtualbox-guest-utils baobab"
+    aur_package_install "megasync emacs-ess transmission-gtk-git"
 
     # Remove Steam outdated default shipped OpenGL libraries
     rm /home/${username}/.local/share/Steam/ubuntu12_32/steam-runtime/i386/usr/lib/i386-linux-gnu/libstdc++.so.6
     rm /home/${username}/.local/share/Steam/ubuntu12_32/steam-runtime/i386/lib/i386-linux-gnu/libgcc_s.so.1
     rm /home/${username}/.local/share/Steam/ubuntu12_32/steam-runtime/amd64/usr/lib/x86_64-linux-gnu/libstdc++.so.6
     rm /home/${username}/.local/share/Steam/ubuntu12_32/steam-runtime/amd64/lib/x86_64-linux-gnu/libgcc_s.so.1
-
+    
     # Install GRUB theme
     package_install "grub2-theme-archxion-widescreen"
     sed -i '/GRUB_THEME=/s/^#//' /etc/default/grub
@@ -196,7 +190,7 @@ fi
   check_root
   check_archlinux
   check_hostname
-  check_connection# $CONNECTION
+  check_connection $CONNECTION
   check_pacman_blocked
   check_multilib
   pacman_key
@@ -219,11 +213,8 @@ fi
 
     # Desktop Environment
     install_desktop_environment
-    # install_nm_wicd
-
-    # install_x_extras
-    [[ $DEVICETYPE == "desktop" ]] && install_desktop_extras
-    [[ $DEVICETYPE == "laptop" ]] && install_laptop_extras
+    install_nm_wicd
+    install_x_extras
 
   elif [[ $DEVICETYPE == "nuc" ]]; then
     # Basic Setup
