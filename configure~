@@ -159,14 +159,14 @@ fi
 
   # Install extra applications used in a normal desktop environment
   install_x_extras() {
-    package_install "libreoffice-fresh chromium gsl emacs gimp texlive-core texlive-latexextra texlive-bibtexextra texlive-science flashplugin vlc tcl tk gcc-fortran jdk8-openjdk baobab"
-    aur_package_install "megasync emacs-ess transmission-gtk-git teamviewer"
+    package_install "libreoffice-fresh chromium gsl emacs gimp texlive-core texlive-latexextra texlive-bibtexextra texlive-science flashplugin vlc tcl tk gcc-fortran jdk8-openjdk virtualbox virtualbox-guest-utils baobab"
+    aur_package_install "megasync emacs-ess transmission-gtk-git"
 
     # Remove Steam outdated default shipped OpenGL libraries
-    # rm /home/${username}/.local/share/Steam/ubuntu12_32/steam-runtime/i386/usr/lib/i386-linux-gnu/libstdc++.so.6
-    # rm /home/${username}/.local/share/Steam/ubuntu12_32/steam-runtime/i386/lib/i386-linux-gnu/libgcc_s.so.1
-    # rm /home/${username}/.local/share/Steam/ubuntu12_32/steam-runtime/amd64/usr/lib/x86_64-linux-gnu/libstdc++.so.6
-    # rm /home/${username}/.local/share/Steam/ubuntu12_32/steam-runtime/amd64/lib/x86_64-linux-gnu/libgcc_s.so.1
+    rm /home/${username}/.local/share/Steam/ubuntu12_32/steam-runtime/i386/usr/lib/i386-linux-gnu/libstdc++.so.6
+    rm /home/${username}/.local/share/Steam/ubuntu12_32/steam-runtime/i386/lib/i386-linux-gnu/libgcc_s.so.1
+    rm /home/${username}/.local/share/Steam/ubuntu12_32/steam-runtime/amd64/usr/lib/x86_64-linux-gnu/libstdc++.so.6
+    rm /home/${username}/.local/share/Steam/ubuntu12_32/steam-runtime/amd64/lib/x86_64-linux-gnu/libgcc_s.so.1
     
     # Install GRUB theme
     package_install "grub2-theme-archxion-widescreen"
