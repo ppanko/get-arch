@@ -142,13 +142,14 @@ fi
 
   install_desktop_environment() {
     # Setup KDE
-    package_install "kf5 kf5-aids plasma sddm kde-gtk-config oxygen-gtk2 oxygen-gtk3 libappindicator-gtk2 libappindicator-gtk3 kdesu konsole dolphin"
-    is_package_installed "cups" && package_install "kdeutils-print-manager"
-    aur_package_install "flattr-icons-kde"
-    systemctl enable sddm
+    package_install "gnome"
+    ## is_package_installed "cups" && package_install "kdeutils-print-manager"
+    ## aur_package_install "flattr-icons-kde"
+    sudo systemctl start gdm.service
+    sudo systemctl enable gdm.service
 
     ##    
-    echo -e "[Autologin]\nUser=john\nSession=plasma.desktop" >> /etc/sddm.conf.d/autologin.conf
+    ## echo -e "[Autologin]\nUser=john\nSession=plasma.desktop" >> /etc/sddm.conf.d/autologin.conf
   }
 
   # Wireless internet front-end
