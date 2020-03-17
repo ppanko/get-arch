@@ -12,8 +12,8 @@ fi
   LOCALE="en_US"
   KEYMAP="us"               #(us)
   TIMEZONE="America/Chicago"
-  HARDWARECLOCK="utc"           #(utc/localtime)
-  HOSTNAME="arch-5480"
+  HARDWARECLOCK="localtime"           #(utc/localtime)
+  HOSTNAME="arch-540"
   INSTALLPARTITION="sda"        #(sda/sdb/sdc)
 
 # COMMON FUNCTIONS
