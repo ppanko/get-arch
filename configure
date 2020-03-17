@@ -120,15 +120,15 @@ fi
   }
 
   # Installing Infinality font rendering
-  font_config() {
-    add_key "962DDE58"
-    add_repository "infinality-bundle" "http://bohoomil.com/repo/\$arch" "Never"
-    [[ $ARCHI == x86_64 ]] && add_repository "infinality-bundle-multilib" "http://bohoomil.com/repo/multilib/\$arch" "Never"
-    is_package_installed "freetype2" && pacman -Rdds --noconfirm freetype2 fontconfig cairo
-    package_install "infinality-bundle"
-    [[ $ARCHI == x86_64 ]] && package_install "infinality-bundle-multilib"
-    package_install "ttf-bitstream-vera ttf-dejavu"
-  }
+  # font_config() {
+  #   add_key "962DDE58"
+  #   add_repository "infinality-bundle" "http://bohoomil.com/repo/\$arch" "Never"
+  #   [[ $ARCHI == x86_64 ]] && add_repository "infinality-bundle-multilib" "http://bohoomil.com/repo/multilib/\$arch" "Never"
+  #   is_package_installed "freetype2" && pacman -Rdds --noconfirm freetype2 fontconfig cairo
+  #   package_install "infinality-bundle"
+  #   [[ $ARCHI == x86_64 ]] && package_install "infinality-bundle-multilib"
+  #   package_install "ttf-bitstream-vera ttf-dejavu"
+  # }
 
   install_cups() {
     package_install "cups cups-filters ghostscript gsfonts"
@@ -145,13 +145,8 @@ fi
   install_desktop_environment() {
     # Setup KDE
     package_install "gnome"
-    ## is_package_installed "cups" && package_install "kdeutils-print-manager"
-    ## aur_package_install "flattr-icons-kde"
     sudo systemctl start gdm.service
     sudo systemctl enable gdm.service
-
-    ##    
-    ## echo -e "[Autologin]\nUser=john\nSession=plasma.desktop" >> /etc/sddm.conf.d/autologin.conf
   }
 
   # Wireless internet front-end
