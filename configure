@@ -10,7 +10,7 @@ fi
 # VARIABLES
   CONNECTION="wired"         #(wired/wireless)
   USER="pavel"
-  VIDEO_DRIVER="intel"          #(intel/ati/vesa)
+  VIDEO_DRIVER="nvidia"          #(intel/ati/vesa/nvidia)
   DEVICETYPE="laptop"           #(desktop/laptop/nuc)
 
 # COMMON FUNCTIONS
@@ -100,20 +100,22 @@ fi
   install_video_cards() {
     # Intel
     if [[ ${VIDEO_DRIVER} == intel ]]; then
-      package_install "xf86-video-intel intel-dri libva-intel-driver"
-      package_install "mesa-libgl"
-      [[ ${ARCHI} == x86_64 ]] && package_install "lib32-mesa-libgl"
+	package_install "xf86-video-intel intel-dri libva-intel-driver"
+	package_install "mesa-libgl"
+	[[ ${ARCHI} == x86_64 ]] && package_install "lib32-mesa-libgl"
+    elif [[ ${VIDEO_DRIVER} == nvidia ]]; then
+	package_install "nvidia"
     # AMD/ATI
     elif [[ ${VIDEO_DRIVER} == ati ]]; then
-      package_install "mesa-libgl"
-      package_install "xf86-video-${VIDEO_DRIVER} ${VIDEO_DRIVER}-dri"
-      [[ ${ARCHI} == x86_64 ]] && package_install "lib32-${VIDEO_DRIVER}-dri"
-      add_module "radeon" "ati"
-    # Vesa
+	package_install "mesa-libgl"
+	package_install "xf86-video-${VIDEO_DRIVER} ${VIDEO_DRIVER}-dri"
+	[[ ${ARCHI} == x86_64 ]] && package_install "lib32-${VIDEO_DRIVER}-dri"
+	add_module "radeon" "ati"
+	# Vesa
     else
-      package_install "xf86-video-${VIDEO_DRIVER}"
-      package_install "mesa-libgl"
-      [[ ${ARCHI} == x86_64 ]] && package_install "lib32-mesa-libgl"
+	package_install "xf86-video-${VIDEO_DRIVER}"
+	package_install "mesa-libgl"
+	[[ ${ARCHI} == x86_64 ]] && package_install "lib32-mesa-libgl"
     fi
   }
 
@@ -161,7 +163,7 @@ fi
   # Install extra applications used in a normal desktop environment
   install_x_extras() {
     package_install "libreoffice-fresh chromium gsl emacs gimp texlive-core texlive-latexextra texlive-bibtexextra texlive-science flashplugin vlc tcl tk gcc-fortran jdk8-openjdk baobab"
-    aur_package_install "megasync emacs-ess transmission-gtk-git teamviewer"
+    aur_package_install "megasync transmission-gtk-git teamviewer"
 
     # Remove Steam outdated default shipped OpenGL libraries
     # rm /home/${username}/.local/share/Steam/ubuntu12_32/steam-runtime/i386/usr/lib/i386-linux-gnu/libstdc++.so.6
@@ -207,7 +209,7 @@ fi
     install_ssh
     # install_tlp
     install_xorg
-    install_video_cards
+    # install_video_cards
     # font_config
     # install_cups
     # install_additional_firmwares
