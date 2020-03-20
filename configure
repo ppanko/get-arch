@@ -104,7 +104,7 @@ fi
 	package_install "mesa-libgl"
 	[[ ${ARCHI} == x86_64 ]] && package_install "lib32-mesa-libgl"
     elif [[ ${VIDEO_DRIVER} == nvidia ]]; then
-	package_install "nvidia"
+	package_install "nvidia lib32-nvidia-utils vulkan-icd-loader lib32-vulkan-icd-loader"
     # AMD/ATI
     elif [[ ${VIDEO_DRIVER} == ati ]]; then
 	package_install "mesa-libgl"
@@ -144,7 +144,7 @@ fi
 
   install_desktop_environment() {
     # Setup KDE
-    package_install "gnome"
+    package_install "gnome-shell gnome-terminal gdm gnome-tweak gnome-shell-extensions gnome-screenshot xdg-user-dirs evince baobab dconf-editor"
     sudo systemctl start gdm.service
     sudo systemctl enable gdm.service
   }
@@ -157,7 +157,7 @@ fi
 
   # Install extra applications used in a normal desktop environment
   install_x_extras() {
-    package_install "libreoffice-fresh chromium gsl emacs gimp texlive-core texlive-latexextra texlive-bibtexextra texlive-science flashplugin vlc tcl tk gcc-fortran jdk8-openjdk baobab"
+    package_install "libreoffice-fresh chromium gsl emacs-lucid gimp texlive-core htop texlive-latexextra texlive-bibtexextra texlive-science flashplugin vlc tcl tk gcc-fortran jdk8-openjdk baobab"
     aur_package_install "megasync transmission-gtk-git teamviewer"
 
     # Remove Steam outdated default shipped OpenGL libraries

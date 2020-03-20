@@ -27,7 +27,7 @@ check_connection $CONNECTION
 pacman -Sy
 
 # Install the base system
-pacstrap ${MOUNTPOINT} base base-devel linux-headers git
+pacstrap ${MOUNTPOINT} base base-devel linux linux-firmware git
 
 case "$CONNECTION" in
   wired)
