@@ -4,6 +4,7 @@ set -euo pipefail
 REPO_ROOT=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
 source "$REPO_ROOT/lib/common.sh"
 source "$REPO_ROOT/lib/detect.sh"
+source "$REPO_ROOT/lib/packages.sh"
 
 usage() {
   cat <<'EOF_USAGE'
