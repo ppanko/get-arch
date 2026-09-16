@@ -26,3 +26,30 @@ assert_eq $'packages:gnome-shell gnome-session gnome-control-center gnome-settin
 
 CALLS=''; configure_ssh
 assert_eq $'packages:openssh\nenable:sshd.service\nstart:sshd.service' "${CALLS%$'\n'}" 'ssh module contract'
+
+pacman() {
+  if [[ ${1:-} == -Qq && ${2:-} == "${INSTALLED_KERNEL:-}" ]]; then
+    return 0
+  fi
+  return 1
+}
+die() { CALLS+="die:$*"$'\n'; return 1; }
+source modules/graphics.sh
+source modules/laptop.sh
+
+CALLS=''; GPU_VENDORS=(intel amd); INSTALLED_KERNEL=''
+configure_graphics
+assert_eq 'packages:mesa vulkan-intel vulkan-radeon switcheroo-control' "${CALLS%$'\n'}" 'intel+amd graphics policy'
+
+CALLS=''; GPU_VENDORS=(nvidia); INSTALLED_KERNEL=linux
+configure_graphics
+assert_eq 'packages:mesa nvidia-open-dkms nvidia-utils dkms linux-headers' "${CALLS%$'\n'}" 'nvidia graphics policy'
+
+CALLS=''; MACHINE_TYPE=laptop
+configure_laptop
+assert_eq 'packages:power-profiles-daemon' "${CALLS%$'\n'}" 'laptop power policy'
+
+CALLS=''; MACHINE_TYPE=desktop
+configure_laptop
+assert_contains "$CALLS" 'skip:Laptop-specific configuration not required' 'desktop skips laptop policy'
+[[ "$CALLS" != *'packages:'* ]] || { echo 'FAIL: desktop requested laptop package' >&2; exit 1; }
