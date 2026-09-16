@@ -6,6 +6,10 @@ source "$REPO_ROOT/lib/common.sh"
 source "$REPO_ROOT/lib/detect.sh"
 source "$REPO_ROOT/lib/packages.sh"
 source "$REPO_ROOT/modules/identity.sh"
+source "$REPO_ROOT/modules/network.sh"
+source "$REPO_ROOT/modules/audio.sh"
+source "$REPO_ROOT/modules/desktop.sh"
+source "$REPO_ROOT/modules/ssh.sh"
 
 usage() {
   cat <<'EOF_USAGE'
