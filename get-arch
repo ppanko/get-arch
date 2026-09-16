@@ -1,0 +1,35 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+REPO_ROOT=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
+source "$REPO_ROOT/lib/common.sh"
+
+usage() {
+  cat <<'EOF_USAGE'
+Usage: ./get-arch [--check] [--verbose] [--help]
+EOF_USAGE
+}
+
+parse_args() {
+  while (($#)); do
+    case "$1" in
+      --check) CHECK_MODE=1 ;;
+      --verbose) VERBOSE=1 ;;
+      --help) usage; return 10 ;;
+      *) printf 'Unknown option: %s\n' "$1" >&2; return 2 ;;
+    esac
+    shift
+  done
+}
+
+main() {
+  local parse_status=0
+  parse_args "$@" || parse_status=$?
+  [[ $parse_status -eq 10 ]] && return 0
+  [[ $parse_status -eq 0 ]] || return "$parse_status"
+  init_logging
+}
+
+if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
+  main "$@"
+fi

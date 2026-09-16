@@ -1,0 +1,7 @@
+#!/usr/bin/env bash
+set -euo pipefail
+cd "$(dirname "$0")/.."
+for test_file in tests/test_*.sh; do
+  printf '==> %s\n' "$test_file"
+  bash "$test_file"
+done
