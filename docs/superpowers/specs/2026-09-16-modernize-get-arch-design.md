@@ -11,11 +11,15 @@ The result should remain easy to understand and runnable from a fresh Arch shell
 `get-arch` will become the second stage of a two-stage installation workflow:
 
 1. Install a minimal, bootable Arch system with `archinstall`.
-2. Reboot into that system, clone `get-arch`, and run it as root to configure a complete GNOME workstation.
+2. Reboot into that system, retrieve `get-arch`, and run it as root to configure a complete GNOME workstation.
 
 `get-arch` will not own disk partitioning, filesystems, encryption, bootloader selection, or base-system installation. Those responsibilities belong to `archinstall`.
 
 The initial modernization targets laptops and desktops. Hardware-specific behavior is detected rather than selected through machine profiles.
+
+### Post-install preconditions
+
+Before `get-arch` runs, the installed system must be bootable and have working network connectivity sufficient to retrieve the repository. The README should make this bootstrap boundary explicit. If Git is not included in the base installation, the bootstrap instructions may install Git with `pacman` before cloning; that one retrieval prerequisite is not considered workstation configuration.
 
 ## Design principles
 
@@ -34,7 +38,7 @@ The initial modernization targets laptops and desktops. Hardware-specific behavi
 After the base system has been installed and booted:
 
 ```text
-clone get-arch
+retrieve get-arch
     ↓
 run ./get-arch as root
     ↓
@@ -72,7 +76,7 @@ Two additional execution modes should be supported from the first implementation
 ./get-arch --verbose
 ```
 
-`--check` performs preflight checks and detection, then reports the actions that would be taken without modifying the system. `--verbose` exposes underlying command output for diagnosis while normal execution keeps terminal output concise.
+`--check` performs preflight checks and detection, prompts for username and hostname so identity-dependent actions can be evaluated, then reports the actions that would be taken without modifying the system. `--verbose` exposes underlying command output for diagnosis while normal execution keeps terminal output concise.
 
 No persistent checkpoint database is required. The installed system is the source of truth.
 
@@ -344,7 +348,7 @@ These can be reconsidered only when a concrete requirement justifies them.
 
 The modernization is successful when:
 
-- a user can install a minimal Arch system with `archinstall`, reboot, clone this repository, and run one Bash entry point to obtain the intended GNOME workstation;
+- a user can install a minimal Arch system with `archinstall`, reboot into a network-connected system, retrieve this repository, and run one Bash entry point to obtain the intended GNOME workstation;
 - the same code path supports both laptops and desktops through detection rather than separate profiles;
 - username and hostname are runtime inputs rather than repository-specific constants;
 - hardware facts are detected rather than hard-coded;
