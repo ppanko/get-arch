@@ -12,6 +12,7 @@ source "$REPO_ROOT/modules/graphics.sh"
 source "$REPO_ROOT/modules/laptop.sh"
 source "$REPO_ROOT/modules/desktop.sh"
 source "$REPO_ROOT/modules/ssh.sh"
+source "$REPO_ROOT/modules/aur.sh"
 
 usage() {
   cat <<'EOF_USAGE'

@@ -55,3 +55,15 @@ ensure_service_started() {
   systemctl is-active --quiet "$unit" 2>/dev/null && { log_skip "$unit already active"; return; }
   run_mutation "Start $unit" systemctl start "$unit"
 }
+
+run_as_user_mutation() {
+  local user=$1 label=$2
+  shift 2
+  if (( CHECK_MODE )); then
+    printf '[CHECK] %s as %s:' "$label" "$user"
+    printf ' %q' "$@"
+    printf '\n'
+    return 0
+  fi
+  run_mutation "$label" runuser -u "$user" -- "$@"
+}
