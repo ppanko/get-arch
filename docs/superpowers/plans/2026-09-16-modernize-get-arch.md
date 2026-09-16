@@ -4,30 +4,28 @@
 
 **Goal:** Replace the 2020-era installer/configuration scripts with a small, rerunnable Bash post-install configurator that turns a bootable Arch Linux system into the intended GNOME workstation on both laptops and desktops.
 
-**Architecture:** `get-arch` becomes a thin Bash orchestrator over three small libraries, focused domain modules, and declarative package lists. System facts are detected from stable Linux interfaces, identity is prompted at runtime, mutating operations honor `--check`, and each module reconciles current state so rerunning the full command is the recovery mechanism.
+**Architecture:** `get-arch` is a thin Bash orchestrator over three small libraries, focused domain modules, and declarative package lists. System facts come from stable Linux interfaces, identity is prompted at runtime, `--check` suppresses mutations, and each module reconciles current state so rerunning the whole command is the recovery mechanism.
 
-**Tech Stack:** Bash, pacman, systemd, standard Linux sysfs/procfs interfaces, NetworkManager, PipeWire/WirePlumber, GNOME/GDM, current Mesa/NVIDIA driver packages, one AUR helper (`paru`), ShellCheck, plain Bash tests.
+**Tech Stack:** Bash, pacman, systemd, sysfs/procfs, NetworkManager, PipeWire/WirePlumber, GNOME/GDM, current Mesa/NVIDIA packages, `paru`, ShellCheck, plain Bash tests.
 
 **Spec:** `docs/superpowers/specs/2026-09-16-modernize-get-arch-design.md`
 
 ## Global Constraints
 
-- This is stage two only: `archinstall` owns disks, filesystems, encryption, bootloader selection, and base-system installation.
-- The installed system must already boot and have network access sufficient to retrieve the repository and packages.
-- Bash is the implementation language; do not add Python, Ansible, YAML/TOML, or another runtime/configuration framework.
-- Runtime prompts are limited to username and hostname; hardware facts are detected.
-- GNOME/GDM is the only desktop implemented in this modernization.
-- Prefer current Arch- and GNOME-native components: NetworkManager, PipeWire/WirePlumber, Wayland-first GNOME behavior, systemd facilities, and GNOME-integrated power management.
-- Laptop/desktop and GPU handling are detected system states, not machine profiles.
-- All normal package groups are installed by default; grouping is organizational, not an installer chooser.
-- Official repository packages and AUR packages have separate installation paths.
-- Mutating operations must be safe to rerun and must become no-ops when the desired state already exists.
-- `--check` may inspect the system and prompt for username/hostname but must not make persistent changes.
-- A failure stops the run. Do not add rollback transactions, persistent checkpoints, or a second state database.
-- Keep the top-level entry point thin and keep `lib/common.sh` from becoming a replacement for the old `sharedfuncs` grab bag.
-- The current laptop inventory is an input to package reconciliation, not tracked generated state.
-
----
+- This is stage two only. `archinstall` owns disks, filesystems, encryption, bootloader selection, and base-system installation.
+- The machine must already boot and have network access sufficient to retrieve the repository and packages.
+- Use Bash only; do not introduce Python, Ansible, YAML/TOML, or a general configuration framework.
+- Prompt only for username and hostname. Detect hardware/system facts.
+- GNOME/GDM is the only desktop implemented in this pass.
+- Prefer current Arch/GNOME-native choices: NetworkManager, PipeWire/WirePlumber, Wayland-first GNOME, systemd facilities, GNOME-integrated power management.
+- Laptop/desktop and GPU handling are detected system states, not profiles.
+- All workstation package groups are installed by default. Groups are organizational, not an interactive chooser.
+- Official and AUR packages use separate paths.
+- Every mutating operation must be safely rerunnable and become a no-op when already satisfied.
+- `--check` may inspect the host and prompt for identity but must make no persistent changes.
+- Stop on failure. Do not add rollback, checkpoints, or a second state database.
+- Keep `get-arch` thin and keep `lib/common.sh` generic; do not recreate `sharedfuncs`.
+- Current-laptop package inventories are review inputs, not tracked generated files.
 
 ## Target File Structure
 
@@ -35,18 +33,18 @@
 get-arch/
 ├── get-arch
 ├── lib/
-│   ├── common.sh          # generic runtime, logging, dry-run, system-path helpers
-│   ├── detect.sh          # factual system/hardware inspection only
-│   └── packages.sh        # package-list parsing and pacman helpers
+│   ├── common.sh
+│   ├── detect.sh
+│   └── packages.sh
 ├── modules/
-│   ├── identity.sh        # username/hostname, user, wheel, sudo, password workflow
-│   ├── network.sh         # NetworkManager
-│   ├── audio.sh           # PipeWire/WirePlumber
-│   ├── graphics.sh        # Intel/AMD/NVIDIA/hybrid graphics
-│   ├── desktop.sh         # GNOME/GDM
-│   ├── laptop.sh          # laptop-only GNOME-integrated power support
-│   ├── ssh.sh             # OpenSSH server
-│   └── aur.sh             # paru bootstrap and AUR installation as regular user
+│   ├── identity.sh
+│   ├── network.sh
+│   ├── audio.sh
+│   ├── graphics.sh
+│   ├── desktop.sh
+│   ├── laptop.sh
+│   ├── ssh.sh
+│   └── aur.sh
 ├── packages/
 │   ├── desktop
 │   ├── development
@@ -69,11 +67,11 @@ get-arch/
 └── README.md
 ```
 
-The package lists contain workstation applications and tools. Packages that exist solely to implement a system capability remain owned by the relevant module: for example, `networkmanager` by `network.sh`, PipeWire packages by `audio.sh`, GPU drivers by `graphics.sh`, `power-profiles-daemon` by `laptop.sh`, `openssh` by `ssh.sh`, and `sudo` by `identity.sh`.
+Packages that exist only to implement a system capability remain module-owned: `networkmanager`, PipeWire packages, GPU drivers, `power-profiles-daemon`, `openssh`, and `sudo`. Package files contain the reproducible workstation application/tool set.
 
 ---
 
-### Task 1: Build the Test Harness and Common Runtime
+### Task 1: Test Harness, CLI, and Common Runtime
 
 **Files:**
 - Create: `get-arch`
@@ -84,110 +82,66 @@ The package lists contain workstation applications and tools. Packages that exis
 - Create: `tests/test_common.sh`
 
 **Interfaces:**
-- Produces: `parse_args "$@"`, globals `CHECK_MODE`, `VERBOSE`, `REPO_ROOT`, `LOG_FILE`
-- Produces: `system_path ABSOLUTE_PATH -> string`
-- Produces: `log_info`, `log_ok`, `log_skip`, `log_fail`, `die`
-- Produces: `init_logging`, `require_root`, `require_arch`, `require_command`
-- Produces: `run_mutation LABEL COMMAND...`, `run_interactive_mutation LABEL COMMAND...`
-- Produces: `ensure_service_enabled UNIT`, `ensure_service_started UNIT`
-- Consumed later by every module and library
+- Produces globals: `CHECK_MODE`, `VERBOSE`, `REPO_ROOT`, `LOG_FILE`
+- Produces: `parse_args`, `system_path`, `log_info`, `log_ok`, `log_skip`, `log_fail`, `die`, `init_logging`, `require_root`, `require_arch`, `require_command`, `run_mutation`, `run_interactive_mutation`, `ensure_service_enabled`, `ensure_service_started`
 
-- [ ] **Step 1: Add a minimal assertion harness and runner**
+- [ ] **Step 1: Add a minimal Bash test harness**
 
 Create `tests/testlib.sh`:
 
 ```bash
 #!/usr/bin/env bash
 set -u
-
 assert_eq() {
   local expected=$1 actual=$2 message=${3:-}
-  if [[ "$expected" != "$actual" ]]; then
+  [[ "$expected" == "$actual" ]] || {
     printf 'FAIL: %s\nexpected: %q\nactual:   %q\n' "$message" "$expected" "$actual" >&2
-    return 1
-  fi
-}
-
-assert_contains() {
-  local haystack=$1 needle=$2 message=${3:-}
-  if [[ "$haystack" != *"$needle"* ]]; then
-    printf 'FAIL: %s\nmissing: %q\nin:      %q\n' "$message" "$needle" "$haystack" >&2
-    return 1
-  fi
-}
-
-assert_file_contains() {
-  local file=$1 needle=$2
-  grep -Fq -- "$needle" "$file" || {
-    printf 'FAIL: %s does not contain %q\n' "$file" "$needle" >&2
     return 1
   }
 }
+assert_contains() {
+  local haystack=$1 needle=$2 message=${3:-}
+  [[ "$haystack" == *"$needle"* ]] || {
+    printf 'FAIL: %s\nmissing: %q\n' "$message" "$needle" >&2
+    return 1
+  }
+}
+assert_file_contains() { grep -Fq -- "$2" "$1"; }
 ```
 
-Create `tests/run`:
+Create executable `tests/run`:
 
 ```bash
 #!/usr/bin/env bash
 set -euo pipefail
 cd "$(dirname "$0")/.."
-
 for test_file in tests/test_*.sh; do
   printf '==> %s\n' "$test_file"
   bash "$test_file"
 done
 ```
 
-Make `tests/run` executable.
-
 - [ ] **Step 2: Write failing CLI/common tests**
 
-Create `tests/test_cli.sh`:
+`tests/test_cli.sh`:
 
 ```bash
 #!/usr/bin/env bash
 set -euo pipefail
 source tests/testlib.sh
 source ./get-arch
-
-CHECK_MODE=0
-VERBOSE=0
+CHECK_MODE=0; VERBOSE=0
 parse_args --check --verbose
-assert_eq 1 "$CHECK_MODE" '--check enables check mode'
-assert_eq 1 "$VERBOSE" '--verbose enables verbose mode'
-
+assert_eq 1 "$CHECK_MODE" '--check'
+assert_eq 1 "$VERBOSE" '--verbose'
 set +e
-output=$(parse_args --bogus 2>&1)
-status=$?
+output=$(parse_args --bogus 2>&1); status=$?
 set -e
-assert_eq 2 "$status" 'unknown options exit 2'
-assert_contains "$output" 'Unknown option' 'unknown option is explained'
+assert_eq 2 "$status" 'unknown option status'
+assert_contains "$output" 'Unknown option' 'unknown option message'
 ```
 
-Create `tests/test_common.sh`:
-
-```bash
-#!/usr/bin/env bash
-set -euo pipefail
-source tests/testlib.sh
-source lib/common.sh
-
-tmp=$(mktemp -d)
-trap 'rm -rf "$tmp"' EXIT
-GET_ARCH_ROOT=$tmp
-assert_eq "$tmp/etc/hostname" "$(system_path /etc/hostname)" 'system_path honors test root'
-
-marker="$tmp/mutated"
-CHECK_MODE=1
-run_mutation 'touch marker' touch "$marker"
-[[ ! -e "$marker" ]] || { echo 'FAIL: check mode mutated system' >&2; exit 1; }
-
-CHECK_MODE=0
-LOG_FILE="$tmp/log"
-VERBOSE=0
-run_mutation 'touch marker' touch "$marker"
-[[ -e "$marker" ]] || { echo 'FAIL: normal mode did not execute mutation' >&2; exit 1; }
-```
+`tests/test_common.sh` must verify `system_path` honors a temporary `GET_ARCH_ROOT`, `CHECK_MODE=1` prevents a `touch`, and normal mode executes it.
 
 Run:
 
@@ -196,170 +150,83 @@ bash tests/test_cli.sh
 bash tests/test_common.sh
 ```
 
-Expected: FAIL because the entry point and common helpers do not exist.
+Expected: FAIL because runtime files/functions do not exist.
 
 - [ ] **Step 3: Implement the common runtime**
 
-Create `lib/common.sh` with strict, source-safe helpers. Use these exact public semantics:
+Core behavior in `lib/common.sh`:
 
 ```bash
-#!/usr/bin/env bash
-
 CHECK_MODE=${CHECK_MODE:-0}
 VERBOSE=${VERBOSE:-0}
 GET_ARCH_ROOT=${GET_ARCH_ROOT:-}
 LOG_FILE=${LOG_FILE:-/dev/null}
 
-system_path() {
-  printf '%s%s\n' "$GET_ARCH_ROOT" "$1"
-}
-
+system_path() { printf '%s%s\n' "$GET_ARCH_ROOT" "$1"; }
 log_info() { printf '[INFO] %s\n' "$*"; }
 log_ok()   { printf '[ OK ] %s\n' "$*"; }
 log_skip() { printf '[SKIP] %s\n' "$*"; }
 log_fail() { printf '[FAIL] %s\n' "$*" >&2; }
 die()      { log_fail "$*"; return 1; }
 
-require_root() {
-  (( EUID == 0 )) || die 'Run get-arch as root.'
-}
-
-require_arch() {
-  [[ -e "$(system_path /etc/arch-release)" ]] || die 'get-arch must run on Arch Linux.'
-}
-
-require_command() {
-  command -v "$1" >/dev/null 2>&1 || die "Required command not found: $1"
-}
+require_root() { (( EUID == 0 )) || die 'Run get-arch as root.'; }
+require_arch() { [[ -e "$(system_path /etc/arch-release)" ]] || die 'get-arch must run on Arch Linux.'; }
+require_command() { command -v "$1" >/dev/null 2>&1 || die "Required command not found: $1"; }
 
 init_logging() {
-  if (( CHECK_MODE )); then
-    LOG_FILE=/dev/null
-    return
-  fi
-  local log_dir
-  log_dir=$(system_path /var/log/get-arch)
-  mkdir -p "$log_dir"
-  LOG_FILE="$log_dir/get-arch-$(date +%Y%m%d-%H%M%S).log"
+  if (( CHECK_MODE )); then LOG_FILE=/dev/null; return; fi
+  local dir
+  dir=$(system_path /var/log/get-arch)
+  mkdir -p "$dir"
+  LOG_FILE="$dir/get-arch-$(date +%Y%m%d-%H%M%S).log"
   : >"$LOG_FILE"
 }
 
 run_mutation() {
-  local label=$1
-  shift
+  local label=$1; shift
   if (( CHECK_MODE )); then
-    printf '[CHECK] %s:' "$label"
-    printf ' %q' "$@"
-    printf '\n'
-    return 0
+    printf '[CHECK] %s:' "$label"; printf ' %q' "$@"; printf '\n'; return 0
   fi
   if (( VERBOSE )); then
-    if "$@" 2>&1 | tee -a "$LOG_FILE"; then
-      log_ok "$label"
-    else
-      log_fail "$label"
-      return 1
-    fi
-  elif "$@" >>"$LOG_FILE" 2>&1; then
-    log_ok "$label"
+    "$@" 2>&1 | tee -a "$LOG_FILE" && { log_ok "$label"; return; }
   else
-    log_fail "$label"
-    return 1
+    "$@" >>"$LOG_FILE" 2>&1 && { log_ok "$label"; return; }
   fi
+  log_fail "$label"; return 1
 }
 
 run_interactive_mutation() {
-  local label=$1
-  shift
-  if (( CHECK_MODE )); then
-    printf '[CHECK] %s\n' "$label"
-    return 0
-  fi
-  "$@"
-  log_ok "$label"
+  local label=$1; shift
+  if (( CHECK_MODE )); then printf '[CHECK] %s\n' "$label"; return 0; fi
+  "$@" && log_ok "$label"
 }
 
 ensure_service_enabled() {
   local unit=$1
-  if systemctl is-enabled --quiet "$unit" 2>/dev/null; then
-    log_skip "$unit already enabled"
-  else
-    run_mutation "Enable $unit" systemctl enable "$unit"
-  fi
+  systemctl is-enabled --quiet "$unit" 2>/dev/null && { log_skip "$unit already enabled"; return; }
+  run_mutation "Enable $unit" systemctl enable "$unit"
 }
 
 ensure_service_started() {
   local unit=$1
-  if systemctl is-active --quiet "$unit" 2>/dev/null; then
-    log_skip "$unit already active"
-  else
-    run_mutation "Start $unit" systemctl start "$unit"
-  fi
+  systemctl is-active --quiet "$unit" 2>/dev/null && { log_skip "$unit already active"; return; }
+  run_mutation "Start $unit" systemctl start "$unit"
 }
 ```
 
-Create a sourceable `get-arch` skeleton with `parse_args`, `usage`, and a guarded `main`:
+Create sourceable `get-arch` with `set -euo pipefail`, `REPO_ROOT`, `usage`, `parse_args`, a guarded `main`, and no domain logic yet. `--help` exits 0; an unknown option exits 2.
 
-```bash
-#!/usr/bin/env bash
-set -euo pipefail
-
-REPO_ROOT=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
-source "$REPO_ROOT/lib/common.sh"
-
-usage() {
-  cat <<'EOF'
-Usage: ./get-arch [--check] [--verbose] [--help]
-EOF
-}
-
-parse_args() {
-  while (($#)); do
-    case "$1" in
-      --check) CHECK_MODE=1 ;;
-      --verbose) VERBOSE=1 ;;
-      --help) usage; return 10 ;;
-      *) printf 'Unknown option: %s\n' "$1" >&2; return 2 ;;
-    esac
-    shift
-  done
-}
-
-main() {
-  local parse_status=0
-  parse_args "$@" || parse_status=$?
-  [[ $parse_status -eq 10 ]] && return 0
-  [[ $parse_status -eq 0 ]] || return "$parse_status"
-  init_logging
-}
-
-if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
-  main "$@"
-fi
-```
-
-- [ ] **Step 4: Run the focused tests**
-
-Run:
+- [ ] **Step 4: Run tests and syntax checks**
 
 ```bash
 bash tests/test_cli.sh
 bash tests/test_common.sh
-```
-
-Expected: PASS.
-
-- [ ] **Step 5: Run syntax checks**
-
-Run:
-
-```bash
 bash -n get-arch lib/common.sh tests/run tests/testlib.sh tests/test_cli.sh tests/test_common.sh
 ```
 
-Expected: exit 0.
+Expected: PASS / exit 0.
 
-- [ ] **Step 6: Commit**
+- [ ] **Step 5: Commit**
 
 ```bash
 git add get-arch lib/common.sh tests/
@@ -368,7 +235,7 @@ git commit -m "feat: add get-arch runtime skeleton"
 
 ---
 
-### Task 2: Add Hardware and System Detection
+### Task 2: System and Hardware Detection
 
 **Files:**
 - Create: `lib/detect.sh`
@@ -376,144 +243,63 @@ git commit -m "feat: add get-arch runtime skeleton"
 - Modify: `get-arch`
 
 **Interfaces:**
-- Consumes: `system_path`
-- Produces: `detect_architecture -> stdout`
-- Produces: `detect_boot_mode -> uefi|bios`
-- Produces: `detect_has_battery -> 0|1` through exit status and printable summary via `detect_system`
-- Produces: `detect_machine_type -> laptop|desktop`
-- Produces: `detect_gpu_vendors -> one vendor per line: intel|amd|nvidia|other`
-- Produces: `detect_network_interfaces -> one interface name per line`
-- Produces globals after `detect_system`: `SYSTEM_ARCH`, `BOOT_MODE`, `MACHINE_TYPE`, `HAS_BATTERY`, arrays `GPU_VENDORS`, `NETWORK_INTERFACES`
+- Produces: `detect_architecture`, `detect_boot_mode`, `detect_has_battery`, `detect_machine_type`, `detect_gpu_vendors`, `detect_network_interfaces`, `detect_system`
+- `detect_system` exports: `SYSTEM_ARCH`, `BOOT_MODE`, `MACHINE_TYPE`, `HAS_BATTERY`, arrays `GPU_VENDORS`, `NETWORK_INTERFACES`
 
 - [ ] **Step 1: Write fixture-driven failing tests**
 
-Create `tests/test_detect.sh` that builds fake sysfs trees instead of depending on the test host:
+Create a fake root containing:
+
+```text
+/sys/class/dmi/id/chassis_type       = 10
+/sys/firmware/efi/                   exists
+/sys/class/power_supply/BAT0/type    = Battery
+/sys/class/drm/card0/device/vendor   = 0x8086
+/sys/class/drm/card1/device/vendor   = 0x10de
+/sys/class/net/lo/
+/sys/class/net/wlan0/
+```
+
+Set `GET_ARCH_ROOT` to that tree and assert:
 
 ```bash
-#!/usr/bin/env bash
-set -euo pipefail
-source tests/testlib.sh
-source lib/common.sh
-source lib/detect.sh
-
-tmp=$(mktemp -d)
-trap 'rm -rf "$tmp"' EXIT
-GET_ARCH_ROOT=$tmp
-
-mkdir -p "$tmp/sys/class/dmi/id" "$tmp/sys/firmware/efi" \
-         "$tmp/sys/class/drm/card0/device" "$tmp/sys/class/drm/card1/device" \
-         "$tmp/sys/class/net/lo" "$tmp/sys/class/net/wlan0" \
-         "$tmp/sys/class/power_supply/BAT0"
-printf '10\n' >"$tmp/sys/class/dmi/id/chassis_type"
-printf 'Battery\n' >"$tmp/sys/class/power_supply/BAT0/type"
-printf '0x8086\n' >"$tmp/sys/class/drm/card0/device/vendor"
-printf '0x10de\n' >"$tmp/sys/class/drm/card1/device/vendor"
-
-assert_eq uefi "$(detect_boot_mode)" 'EFI directory means UEFI'
-assert_eq laptop "$(detect_machine_type)" 'portable chassis means laptop'
-assert_eq $'intel\nnvidia' "$(detect_gpu_vendors)" 'hybrid GPU vendors are both reported'
-assert_eq wlan0 "$(detect_network_interfaces)" 'loopback is excluded'
-
+assert_eq uefi "$(detect_boot_mode)"
+assert_eq laptop "$(detect_machine_type)"
+assert_eq $'intel\nnvidia' "$(detect_gpu_vendors)"
+assert_eq wlan0 "$(detect_network_interfaces)"
 detect_system
-assert_eq laptop "$MACHINE_TYPE" 'detect_system exports machine type'
-assert_eq 1 "$HAS_BATTERY" 'detect_system exports battery presence'
-assert_eq 2 "${#GPU_VENDORS[@]}" 'detect_system exports GPU array'
+assert_eq laptop "$MACHINE_TYPE"
+assert_eq 1 "$HAS_BATTERY"
+assert_eq 2 "${#GPU_VENDORS[@]}"
 ```
 
-Run:
+Run `bash tests/test_detect.sh`; expected FAIL.
+
+- [ ] **Step 2: Implement stable sysfs detection**
+
+Use these exact mappings/policies:
 
 ```bash
-bash tests/test_detect.sh
-```
-
-Expected: FAIL because `lib/detect.sh` does not exist.
-
-- [ ] **Step 2: Implement stable sysfs-based detection**
-
-Create `lib/detect.sh`. Do not use `enp*`/`wlp*` naming or require `lspci` for baseline detection.
-
-Use these mappings:
-
-```bash
-detect_architecture() {
-  uname -m
-}
-
-detect_boot_mode() {
-  [[ -d "$(system_path /sys/firmware/efi)" ]] && printf 'uefi\n' || printf 'bios\n'
-}
-
-detect_has_battery() {
-  local type_file
-  for type_file in "$(system_path /sys/class/power_supply)"/*/type; do
-    [[ -f "$type_file" ]] || continue
-    [[ $(<"$type_file") == Battery ]] && return 0
-  done
-  return 1
-}
-
-detect_machine_type() {
-  local chassis_file chassis
-  chassis_file=$(system_path /sys/class/dmi/id/chassis_type)
-  if [[ -r "$chassis_file" ]]; then
-    chassis=$(<"$chassis_file")
-    case "$chassis" in
-      8|9|10|11|14|30|31|32) printf 'laptop\n'; return ;;
-    esac
-  fi
-  detect_has_battery && printf 'laptop\n' || printf 'desktop\n'
-}
+detect_architecture() { uname -m; }
+detect_boot_mode() { [[ -d "$(system_path /sys/firmware/efi)" ]] && echo uefi || echo bios; }
 
 map_gpu_vendor() {
   case "${1,,}" in
-    0x8086) printf 'intel\n' ;;
-    0x1002|0x1022) printf 'amd\n' ;;
-    0x10de) printf 'nvidia\n' ;;
-    *) printf 'other\n' ;;
+    0x8086) echo intel ;;
+    0x1002) echo amd ;;
+    0x10de) echo nvidia ;;
+    *) echo other ;;
   esac
 }
-
-detect_gpu_vendors() {
-  local vendor_file
-  for vendor_file in "$(system_path /sys/class/drm)"/card*/device/vendor; do
-    [[ -r "$vendor_file" ]] || continue
-    map_gpu_vendor "$(<"$vendor_file")"
-  done | sort -u
-}
-
-detect_network_interfaces() {
-  local path
-  for path in "$(system_path /sys/class/net)"/*; do
-    [[ -e "$path" ]] || continue
-    [[ ${path##*/} == lo ]] || printf '%s\n' "${path##*/}"
-  done | sort
-}
 ```
 
-`detect_system` must populate globals without applying policy:
+`detect_has_battery` checks `/sys/class/power_supply/*/type` for `Battery`. `detect_machine_type` treats DMI chassis types `8,9,10,11,14,30,31,32` as portable and otherwise falls back to battery presence. `detect_gpu_vendors` reads `/sys/class/drm/card*/device/vendor`, maps vendors, and `sort -u`s them. `detect_network_interfaces` lists `/sys/class/net/*` except `lo`; it never assumes `enp*`/`wlp*`.
 
-```bash
-detect_system() {
-  SYSTEM_ARCH=$(detect_architecture)
-  BOOT_MODE=$(detect_boot_mode)
-  MACHINE_TYPE=$(detect_machine_type)
-  if detect_has_battery; then HAS_BATTERY=1; else HAS_BATTERY=0; fi
-  mapfile -t GPU_VENDORS < <(detect_gpu_vendors)
-  mapfile -t NETWORK_INTERFACES < <(detect_network_interfaces)
-}
-```
+`detect_system` populates the documented globals and applies no policy.
 
-- [ ] **Step 3: Make the top-level script source detection but do not orchestrate modules yet**
+- [ ] **Step 3: Source detection and run tests**
 
-Add:
-
-```bash
-source "$REPO_ROOT/lib/detect.sh"
-```
-
-- [ ] **Step 4: Run tests and syntax checks**
-
-Run:
+Add `source "$REPO_ROOT/lib/detect.sh"` to `get-arch`.
 
 ```bash
 bash tests/test_detect.sh
@@ -523,7 +309,7 @@ bash -n lib/detect.sh
 
 Expected: PASS.
 
-- [ ] **Step 5: Commit**
+- [ ] **Step 4: Commit**
 
 ```bash
 git add get-arch lib/detect.sh tests/test_detect.sh
@@ -532,93 +318,41 @@ git commit -m "feat: detect workstation hardware"
 
 ---
 
-### Task 3: Add Declarative Package Parsing and Pacman Helpers
+### Task 3: Declarative Package Engine
 
 **Files:**
 - Create: `lib/packages.sh`
-- Create: `packages/desktop`
-- Create: `packages/development`
-- Create: `packages/data-science`
-- Create: `packages/documents`
-- Create: `packages/media`
-- Create: `packages/utilities`
-- Create: `packages/aur`
+- Create: `packages/{desktop,development,data-science,documents,media,utilities,aur}`
 - Create: `tests/test_packages.sh`
 - Modify: `get-arch`
 
 **Interfaces:**
-- Consumes: `run_mutation`, `log_skip`, `REPO_ROOT`
-- Produces: `parse_package_file FILE -> package names on stdout`
-- Produces: `load_official_packages -> sorted unique package names on stdout`
-- Produces: `load_aur_packages -> sorted unique package names on stdout`
-- Produces: `ensure_packages PACKAGE...`
-- Produces: `upgrade_system`
-- Produces: `validate_package_files`
+- Produces: `parse_package_file`, `load_official_packages`, `load_aur_packages`, `ensure_packages`, `upgrade_system`, `validate_package_files`, `install_declared_official_packages`
 
-- [ ] **Step 1: Create empty category files and write failing parser tests**
+- [ ] **Step 1: Create category files and failing parser tests**
 
-Each package file initially contains only a category comment, for example:
+Each package file begins as a single category comment; Task 9 populates the canonical lists.
+
+Test fixture:
 
 ```text
-# Desktop workstation packages
-```
-
-They are populated from the legacy repo and current laptop in Task 9.
-
-Create `tests/test_packages.sh`:
-
-```bash
-#!/usr/bin/env bash
-set -euo pipefail
-source tests/testlib.sh
-source lib/common.sh
-source lib/packages.sh
-
-tmp=$(mktemp -d)
-trap 'rm -rf "$tmp"' EXIT
-cat >"$tmp/packages" <<'EOF'
 # comment
  git
 vim   # inline comment
 
 git
 python
-EOF
-
-actual=$(parse_package_file "$tmp/packages")
-assert_eq $'git\nvim\ngit\npython' "$actual" 'parser removes comments and blanks without deduplicating'
-
-mkdir -p "$tmp/repo/packages"
-printf '%s\n' git python >"$tmp/repo/packages/development"
-printf '%s\n' python r >"$tmp/repo/packages/data-science"
-for group in desktop documents media utilities; do : >"$tmp/repo/packages/$group"; done
-: >"$tmp/repo/packages/aur"
-REPO_ROOT="$tmp/repo"
-assert_eq $'git\npython\nr' "$(load_official_packages)" 'official groups are sorted and deduplicated'
 ```
 
-Run:
+Assert `parse_package_file` returns `git`, `vim`, `git`, `python` in order, while `load_official_packages` across fixture groups returns sorted unique names.
 
-```bash
-bash tests/test_packages.sh
-```
-
-Expected: FAIL.
-
-- [ ] **Step 2: Implement package parsing and installation**
-
-Create `lib/packages.sh` with the exact official group set:
+- [ ] **Step 2: Implement parsing and pacman helpers**
 
 ```bash
 OFFICIAL_PACKAGE_GROUPS=(desktop development data-science documents media utilities)
 
 parse_package_file() {
-  local file=$1
-  awk '
-    { sub(/[[:space:]]*#.*/, "") }
-    { gsub(/^[[:space:]]+|[[:space:]]+$/, "") }
-    length { print }
-  ' "$file"
+  awk '{ sub(/[[:space:]]*#.*/, ""); gsub(/^[[:space:]]+|[[:space:]]+$/, ""); if (length) print }' "$1"
 }
 
 load_official_packages() {
@@ -628,86 +362,46 @@ load_official_packages() {
   done | sort -u
 }
 
-load_aur_packages() {
-  parse_package_file "$REPO_ROOT/packages/aur" | sort -u
-}
+load_aur_packages() { parse_package_file "$REPO_ROOT/packages/aur" | sort -u; }
 
 ensure_packages() {
   (($#)) || return 0
   run_mutation "Install packages: $*" pacman -S --needed --noconfirm -- "$@"
 }
 
-upgrade_system() {
-  run_mutation 'Upgrade Arch system' pacman -Syu --noconfirm
-}
+upgrade_system() { run_mutation 'Upgrade Arch system' pacman -Syu --noconfirm; }
 
-validate_package_files() {
-  local file pkg
-  for file in "$REPO_ROOT"/packages/*; do
-    while IFS= read -r pkg; do
-      [[ "$pkg" =~ ^[[:alnum:]@._+:-]+$ ]] || {
-        printf 'Invalid package entry %q in %s\n' "$pkg" "$file" >&2
-        return 1
-      }
-    done < <(parse_package_file "$file")
-  done
+install_declared_official_packages() {
+  local packages=()
+  mapfile -t packages < <(load_official_packages)
+  ensure_packages "${packages[@]}"
 }
 ```
 
-Do not use `pacman -Sy` or `pacman -Syy` independently. `upgrade_system` is the only database-refresh path and performs a full upgrade.
+`validate_package_files` accepts only nonempty entries matching `^[[:alnum:]@._+:-]+$` after parsing.
 
-- [ ] **Step 3: Extend package tests for check mode and validation**
+Never use standalone `pacman -Sy` or `pacman -Syy`.
 
-Add a fake `pacman` earlier in `PATH` and assert that `CHECK_MODE=1` does not invoke it; then set `CHECK_MODE=0` and assert the command includes `-S --needed --noconfirm`.
+- [ ] **Step 3: Test dry-run and normal pacman calls**
 
-Use:
+Put a fake `pacman` earlier in `PATH`. Assert `CHECK_MODE=1` records no invocation and normal mode records:
 
-```bash
-mkdir -p "$tmp/bin"
-cat >"$tmp/bin/pacman" <<EOF
-#!/usr/bin/env bash
-printf '%s\n' "\$*" >>"$tmp/pacman.calls"
-EOF
-chmod +x "$tmp/bin/pacman"
-PATH="$tmp/bin:$PATH"
-LOG_FILE="$tmp/log"
-
-CHECK_MODE=1
-ensure_packages git
-[[ ! -e "$tmp/pacman.calls" ]] || exit 1
-
-CHECK_MODE=0
-ensure_packages git python
-assert_file_contains "$tmp/pacman.calls" '-S --needed --noconfirm -- git python'
+```text
+-S --needed --noconfirm -- git python
 ```
 
-- [ ] **Step 4: Source the library and run all tests**
-
-Add to `get-arch`:
-
-```bash
-source "$REPO_ROOT/lib/packages.sh"
-```
-
-Run:
+- [ ] **Step 4: Run tests and commit**
 
 ```bash
 ./tests/run
 bash -n lib/packages.sh
-```
-
-Expected: PASS.
-
-- [ ] **Step 5: Commit**
-
-```bash
 git add get-arch lib/packages.sh packages/ tests/test_packages.sh
 git commit -m "feat: add declarative package engine"
 ```
 
 ---
 
-### Task 4: Implement Runtime Identity and Sudo Setup
+### Task 4: Runtime Identity and Sudo
 
 **Files:**
 - Create: `modules/identity.sh`
@@ -715,24 +409,12 @@ git commit -m "feat: add declarative package engine"
 - Modify: `get-arch`
 
 **Interfaces:**
-- Consumes: `ensure_packages`, `run_mutation`, `run_interactive_mutation`, `system_path`, `CHECK_MODE`
-- Produces: `validate_username NAME`
-- Produces: `validate_hostname NAME`
+- Produces: `validate_username`, `validate_hostname`, `prompt_identity`, `configure_identity`
 - Produces globals: `USERNAME`, `HOSTNAME_VALUE`
-- Produces: `prompt_identity`, `configure_identity`
 
 - [ ] **Step 1: Write failing validation tests**
 
-Create `tests/test_identity.sh`:
-
 ```bash
-#!/usr/bin/env bash
-set -euo pipefail
-source tests/testlib.sh
-source lib/common.sh
-source lib/packages.sh
-source modules/identity.sh
-
 validate_username pavel
 ! validate_username 'Pavel Smith'
 ! validate_username '-root'
@@ -741,198 +423,97 @@ validate_hostname arch-laptop
 ! validate_hostname 'arch_1'
 ```
 
-Run:
+- [ ] **Step 2: Implement validation and prompting**
 
 ```bash
-bash tests/test_identity.sh
+validate_username() { [[ $1 =~ ^[a-z_][a-z0-9_-]{0,31}$ ]]; }
+validate_hostname() { [[ ${#1} -le 63 && $1 =~ ^[A-Za-z0-9]([A-Za-z0-9-]*[A-Za-z0-9])?$ ]]; }
 ```
 
-Expected: FAIL.
+`prompt_identity` loops until each value validates. Do not persist defaults in the repository.
 
-- [ ] **Step 2: Implement strict validation and prompting**
+- [ ] **Step 3: Write idempotence tests with command stubs and `GET_ARCH_ROOT`**
 
-Use a conservative Linux username and single-label hostname contract:
-
-```bash
-validate_username() {
-  [[ $1 =~ ^[a-z_][a-z0-9_-]{0,31}$ ]]
-}
-
-validate_hostname() {
-  [[ ${#1} -le 63 && $1 =~ ^[A-Za-z0-9]([A-Za-z0-9-]*[A-Za-z0-9])?$ ]]
-}
-
-prompt_identity() {
-  while :; do
-    read -r -p 'Username: ' USERNAME
-    validate_username "$USERNAME" && break
-    printf 'Invalid username. Use lowercase letters, digits, _ or -, beginning with a letter or _.\n' >&2
-  done
-  while :; do
-    read -r -p 'Hostname: ' HOSTNAME_VALUE
-    validate_hostname "$HOSTNAME_VALUE" && break
-    printf 'Invalid hostname. Use a single DNS-style hostname label.\n' >&2
-  done
-}
-```
-
-- [ ] **Step 3: Write failing idempotence tests for user/hostname/sudo behavior**
-
-Stub `id`, `useradd`, `usermod`, `hostnamectl`, `visudo`, and `passwd` through test functions or a temporary `PATH`. Verify:
-
-- an existing user is not recreated;
-- missing wheel membership results in `usermod -aG wheel USER`;
-- `/etc/sudoers.d/10-wheel` is written through the test root with mode `0440`;
-- the sudoers content is exactly `%wheel ALL=(ALL:ALL) ALL` plus newline;
-- hostname is not reset when already correct;
-- password setting is skipped in `--check` and invoked interactively for a newly created user in normal mode.
-
-The expected sudoers fixture is:
+Verify:
 
 ```text
-%wheel ALL=(ALL:ALL) ALL
+existing user       -> no useradd
+missing user        -> useradd -m -G wheel -s /bin/bash USER
+missing wheel       -> usermod -aG wheel USER
+sudoers drop-in     -> /etc/sudoers.d/10-wheel, mode 0440
+sudoers content     -> %wheel ALL=(ALL:ALL) ALL\n
+same hostname       -> no hostnamectl mutation
+newly created user  -> interactive passwd in normal mode, planned only in --check
 ```
 
-- [ ] **Step 4: Implement idempotent identity reconciliation**
+- [ ] **Step 4: Implement `configure_identity`**
 
-`configure_identity` must perform, in order:
+Order:
 
-```bash
+```text
 ensure_packages sudo
-# create user only if `id -u "$USERNAME"` fails
-# ensure wheel membership only if `id -nG "$USERNAME"` lacks wheel
-# validate and install the dedicated sudoers drop-in
-# set hostname only if `hostnamectl --static` differs
-# invoke passwd only for a user created during this run
+create user if missing
+ensure wheel membership
+build temporary sudoers snippet, validate with visudo -cf, install -Dm0440
+set hostname only if hostnamectl --static differs
+run passwd only for a user created during this run
 ```
 
-For the sudoers file, build a temporary file, validate it with `visudo -cf`, then install it with `install -Dm0440`. In check mode, report the intended write but do not create the temp destination under `/etc`.
+All destination writes and commands must honor `CHECK_MODE`.
 
-Use `useradd -m -G wheel -s /bin/bash "$USERNAME"` for a new user and `usermod -aG wheel "$USERNAME"` for an existing user that lacks membership.
-
-- [ ] **Step 5: Run focused and full tests**
-
-Run:
+- [ ] **Step 5: Verify and commit**
 
 ```bash
 bash tests/test_identity.sh
 ./tests/run
 bash -n modules/identity.sh
-```
-
-Expected: PASS.
-
-- [ ] **Step 6: Commit**
-
-```bash
 git add get-arch modules/identity.sh tests/test_identity.sh
 git commit -m "feat: configure runtime identity"
 ```
 
 ---
 
-### Task 5: Implement the Common GNOME Workstation Modules
+### Task 5: Common GNOME Workstation Modules
 
 **Files:**
-- Create: `modules/network.sh`
-- Create: `modules/audio.sh`
-- Create: `modules/desktop.sh`
-- Create: `modules/ssh.sh`
+- Create: `modules/{network,audio,desktop,ssh}.sh`
 - Create: `tests/test_modules.sh`
 - Modify: `get-arch`
 
 **Interfaces:**
-- Consumes: `ensure_packages`, `ensure_service_enabled`, `ensure_service_started`
 - Produces: `configure_network`, `configure_audio`, `configure_desktop`, `configure_ssh`
 
-- [ ] **Step 1: Write failing module contract tests**
+- [ ] **Step 1: Write failing contract tests using stubbed helpers**
 
-In `tests/test_modules.sh`, stub the shared helpers so the test captures requested packages/services instead of touching the host:
+Capture calls and require:
 
-```bash
-#!/usr/bin/env bash
-set -euo pipefail
-source tests/testlib.sh
-
-calls=$(mktemp)
-trap 'rm -f "$calls"' EXIT
-ensure_packages() { printf 'packages:%s\n' "$*" >>"$calls"; }
-ensure_service_enabled() { printf 'enable:%s\n' "$1" >>"$calls"; }
-ensure_service_started() { printf 'start:%s\n' "$1" >>"$calls"; }
-
-source modules/network.sh
-source modules/audio.sh
-source modules/desktop.sh
-source modules/ssh.sh
-
-configure_network
-configure_audio
-configure_desktop
-configure_ssh
-
-assert_file_contains "$calls" 'packages:networkmanager'
-assert_file_contains "$calls" 'enable:NetworkManager.service'
-assert_file_contains "$calls" 'packages:pipewire pipewire-alsa pipewire-pulse wireplumber'
-assert_file_contains "$calls" 'packages:gnome-shell gnome-session gnome-control-center gnome-settings-daemon gnome-keyring gdm nautilus'
-assert_file_contains "$calls" 'enable:gdm.service'
-assert_file_contains "$calls" 'packages:openssh'
-assert_file_contains "$calls" 'enable:sshd.service'
+```text
+network:  packages networkmanager; enable NetworkManager.service
+audio:    packages pipewire pipewire-alsa pipewire-pulse wireplumber
+desktop:  packages gnome-shell gnome-session gnome-control-center gnome-settings-daemon gnome-keyring gdm nautilus; enable gdm.service
+ssh:      packages openssh; enable sshd.service; start sshd.service
 ```
 
-Run:
+Importantly, the network contract does **not** start NetworkManager during provisioning. The system already has a working connection by precondition; enabling NetworkManager for the next boot avoids disrupting an active installer/network stack mid-run.
 
-```bash
-bash tests/test_modules.sh
-```
-
-Expected: FAIL.
-
-- [ ] **Step 2: Implement NetworkManager ownership**
-
-`modules/network.sh`:
+- [ ] **Step 2: Implement the modules**
 
 ```bash
 configure_network() {
   ensure_packages networkmanager
   ensure_service_enabled NetworkManager.service
-  ensure_service_started NetworkManager.service
 }
-```
 
-Do not inspect or branch on wired/wireless interface names.
-
-- [ ] **Step 3: Implement PipeWire/WirePlumber ownership**
-
-`modules/audio.sh`:
-
-```bash
 configure_audio() {
   ensure_packages pipewire pipewire-alsa pipewire-pulse wireplumber
 }
-```
 
-Do not enable system-wide PipeWire services; GNOME user sessions and socket/D-Bus activation own that lifecycle.
-
-- [ ] **Step 4: Implement GNOME/GDM ownership**
-
-`modules/desktop.sh`:
-
-```bash
 configure_desktop() {
-  ensure_packages \
-    gnome-shell gnome-session gnome-control-center gnome-settings-daemon \
-    gnome-keyring gdm nautilus
+  ensure_packages gnome-shell gnome-session gnome-control-center \
+    gnome-settings-daemon gnome-keyring gdm nautilus
   ensure_service_enabled gdm.service
 }
-```
 
-Do not install old Xorg input drivers or add a separate Xorg configuration path.
-
-- [ ] **Step 5: Implement SSH ownership**
-
-`modules/ssh.sh`:
-
-```bash
 configure_ssh() {
   ensure_packages openssh
   ensure_service_enabled sshd.service
@@ -940,28 +521,21 @@ configure_ssh() {
 }
 ```
 
-- [ ] **Step 6: Source the modules and run tests**
+Do not enable global PipeWire services and do not add old Xorg/input-driver configuration.
 
-Add the four module `source` lines to `get-arch`, then run:
+- [ ] **Step 3: Verify and commit**
 
 ```bash
 bash tests/test_modules.sh
 ./tests/run
 bash -n modules/*.sh
-```
-
-Expected: PASS.
-
-- [ ] **Step 7: Commit**
-
-```bash
 git add get-arch modules/network.sh modules/audio.sh modules/desktop.sh modules/ssh.sh tests/test_modules.sh
 git commit -m "feat: configure GNOME workstation services"
 ```
 
 ---
 
-### Task 6: Implement Graphics and Laptop-Specific Configuration
+### Task 6: Graphics and Laptop-Specific Configuration
 
 **Files:**
 - Create: `modules/graphics.sh`
@@ -970,76 +544,46 @@ git commit -m "feat: configure GNOME workstation services"
 - Modify: `get-arch`
 
 **Interfaces:**
-- Consumes globals: `GPU_VENDORS`, `MACHINE_TYPE`
-- Consumes: `ensure_packages`, `log_info`, `log_skip`
-- Produces: `configure_graphics`, `configure_laptop`
-- Produces helper: `installed_kernel_header_packages -> package names`
+- Consumes: `GPU_VENDORS`, `MACHINE_TYPE`
+- Produces: `configure_graphics`, `installed_kernel_header_packages`, `configure_laptop`
 
-- [ ] **Step 1: Add failing graphics/laptop tests**
+- [ ] **Step 1: Add failing policy tests**
 
-Extend `tests/test_modules.sh` with isolated calls:
+Require these outcomes:
 
-```bash
-: >"$calls"
-source modules/graphics.sh
-source modules/laptop.sh
-
+```text
 GPU_VENDORS=(intel amd)
-configure_graphics
-assert_file_contains "$calls" 'packages:mesa vulkan-intel vulkan-radeon switcheroo-control'
+  -> mesa vulkan-intel vulkan-radeon switcheroo-control
 
-: >"$calls"
-GPU_VENDORS=(nvidia)
-installed_kernel_header_packages() { printf '%s\n' linux-headers; }
-configure_graphics
-assert_file_contains "$calls" 'packages:mesa nvidia-open-dkms nvidia-utils dkms linux-headers'
+GPU_VENDORS=(nvidia), installed kernel linux
+  -> mesa nvidia-open-dkms nvidia-utils dkms linux-headers
 
-: >"$calls"
 MACHINE_TYPE=laptop
-configure_laptop
-assert_file_contains "$calls" 'packages:power-profiles-daemon'
+  -> power-profiles-daemon
 
-: >"$calls"
 MACHINE_TYPE=desktop
-configure_laptop
-[[ ! -s "$calls" ]] || { echo 'FAIL: desktop received laptop packages' >&2; exit 1; }
+  -> no laptop package request
 ```
 
-Run and confirm FAIL.
+- [ ] **Step 2: Implement graphics policy locally in `graphics.sh`**
 
-- [ ] **Step 2: Implement Intel/AMD/hybrid package selection**
+Use a local `append_unique` helper and package array. Always begin with `mesa`.
 
-`configure_graphics` starts from `mesa`, then adds vendor-specific packages without duplicates:
+Vendor additions:
 
-- Intel: `vulkan-intel`
-- AMD: `vulkan-radeon`
-- NVIDIA: `nvidia-open-dkms`, `nvidia-utils`, `dkms`, plus headers for installed supported kernels
-- More than one detected vendor: `switcheroo-control`
-
-Use an array and a small `append_unique` helper local to `graphics.sh`; do not put graphics policy in `common.sh`.
-
-- [ ] **Step 3: Implement kernel-header discovery for DKMS**
-
-Support the standard Arch kernels explicitly:
-
-```bash
-installed_kernel_header_packages() {
-  local pkg
-  for pkg in linux linux-lts linux-zen linux-hardened; do
-    if pacman -Qq "$pkg" >/dev/null 2>&1; then
-      printf '%s-headers\n' "$pkg"
-    fi
-  done
-}
+```text
+intel   -> vulkan-intel
+amd     -> vulkan-radeon
+nvidia  -> nvidia-open-dkms nvidia-utils dkms + installed kernel headers
+>1 GPU vendor -> switcheroo-control
+other   -> no guessed vendor driver; retain mesa and emit an informational message
 ```
 
-If NVIDIA is detected and no supported installed kernel package is found, return an actionable failure rather than guessing a header package.
+`installed_kernel_header_packages` explicitly maps installed `linux`, `linux-lts`, `linux-zen`, and `linux-hardened` to their `*-headers` package. If NVIDIA is detected but none of those kernels is found, fail with an actionable message instead of guessing.
 
-The initial NVIDIA policy is the current `nvidia-open` path. Do not silently install legacy NVIDIA AUR branches. If a machine requires a legacy driver, fail with a message identifying that the automatic path only supports GPUs handled by the current open kernel module and leave legacy support for a separate explicit enhancement.
+The initial NVIDIA policy intentionally uses the current open kernel-module path. Do not silently install legacy NVIDIA AUR branches. A legacy NVIDIA machine should receive a clear unsupported-driver message and stop so legacy support can be designed explicitly later.
 
-- [ ] **Step 4: Implement laptop behavior**
-
-`modules/laptop.sh`:
+- [ ] **Step 3: Implement laptop policy**
 
 ```bash
 configure_laptop() {
@@ -1053,28 +597,19 @@ configure_laptop() {
 
 Do not install TLP alongside `power-profiles-daemon`.
 
-- [ ] **Step 5: Run tests and syntax checks**
-
-Run:
+- [ ] **Step 4: Verify and commit**
 
 ```bash
 bash tests/test_modules.sh
 ./tests/run
 bash -n modules/graphics.sh modules/laptop.sh
-```
-
-Expected: PASS.
-
-- [ ] **Step 6: Commit**
-
-```bash
 git add get-arch modules/graphics.sh modules/laptop.sh tests/test_modules.sh
 git commit -m "feat: configure detected hardware"
 ```
 
 ---
 
-### Task 7: Bootstrap and Use a Single AUR Helper Safely
+### Task 7: Isolated AUR Installation
 
 **Files:**
 - Create: `modules/aur.sh`
@@ -1084,116 +619,89 @@ git commit -m "feat: configure detected hardware"
 - Modify: `get-arch`
 
 **Interfaces:**
-- Consumes: `USERNAME`, `load_aur_packages`, `ensure_packages`, `run_mutation`, `CHECK_MODE`
-- Produces: `run_as_user_mutation USER LABEL COMMAND...`
-- Produces: `ensure_aur_helper`, `install_aur_packages`
+- Produces: `run_as_user_mutation`, `ensure_aur_helper`, `install_aur_packages`
 - AUR helper: `paru`
 
-- [ ] **Step 1: Add a failing non-root execution helper test**
+- [ ] **Step 1: Test user-scoped mutations**
 
-Extend `tests/test_common.sh` by stubbing `runuser` in `PATH` and asserting:
+Stub `runuser`; assert normal mode invokes:
 
 ```text
-runuser -u pavel -- bash -lc <command>
+runuser -u USER -- COMMAND...
 ```
 
-is used in normal mode, while check mode prints the planned action and does not invoke the stub.
+and check mode invokes nothing.
 
 - [ ] **Step 2: Implement `run_as_user_mutation`**
 
-Add to `lib/common.sh`:
-
 ```bash
 run_as_user_mutation() {
-  local user=$1 label=$2
-  shift 2
+  local user=$1 label=$2; shift 2
   if (( CHECK_MODE )); then
-    printf '[CHECK] %s as %s:' "$label" "$user"
-    printf ' %q' "$@"
-    printf '\n'
-    return 0
+    printf '[CHECK] %s as %s:' "$label" "$user"; printf ' %q' "$@"; printf '\n'; return 0
   fi
   run_mutation "$label" runuser -u "$user" -- "$@"
 }
 ```
 
-- [ ] **Step 3: Write failing AUR module tests**
+- [ ] **Step 3: Write failing AUR tests**
 
-In `tests/test_modules.sh`, override `command`, `ensure_packages`, `run_as_user_mutation`, and `load_aur_packages` sufficiently to assert:
+Verify:
 
-- `paru` already on `PATH` skips bootstrap;
-- absent `paru` ensures `base-devel git rust` before bootstrap;
-- bootstrap runs as `USERNAME`;
-- AUR package installation runs as `USERNAME`;
-- an empty AUR list is a clean no-op.
+```text
+paru already installed -> no bootstrap
+paru absent            -> ensure base-devel git rust, build as USERNAME
+AUR package install    -> paru runs as USERNAME
+empty packages/aur     -> clean no-op
+```
 
-- [ ] **Step 4: Implement `paru` bootstrap**
+- [ ] **Step 4: Implement `paru` bootstrap and installation**
 
-Use a disposable build directory inside the target user's home cache, not the repository:
+Bootstrap script executed as the target user:
 
 ```bash
-ensure_aur_helper() {
-  command -v paru >/dev/null 2>&1 && { log_skip 'paru already installed'; return 0; }
-  ensure_packages base-devel git rust
-  local script
-  script='set -euo pipefail
+set -euo pipefail
 build_dir="$HOME/.cache/get-arch/paru"
 rm -rf "$build_dir"
 mkdir -p "$(dirname "$build_dir")"
 git clone https://aur.archlinux.org/paru.git "$build_dir"
 cd "$build_dir"
-makepkg -si --needed --noconfirm'
-  run_as_user_mutation "$USERNAME" 'Bootstrap paru' bash -lc "$script"
-}
+makepkg -si --needed --noconfirm
 ```
 
-`makepkg` must never run as root.
+Before bootstrap: `ensure_packages base-devel git rust`.
 
-- [ ] **Step 5: Implement AUR installation**
+Install declared AUR packages with:
 
 ```bash
-install_aur_packages() {
-  local packages=()
-  mapfile -t packages < <(load_aur_packages)
-  ((${#packages[@]})) || { log_skip 'No AUR packages declared'; return 0; }
-  run_as_user_mutation "$USERNAME" 'Install AUR packages' \
-    paru -S --needed --noconfirm -- "${packages[@]}"
-}
+paru -S --needed --noconfirm -- "${packages[@]}"
 ```
 
-- [ ] **Step 6: Run tests and syntax checks**
+through `run_as_user_mutation`. `makepkg`/`paru` must never run as root.
 
-Run:
+- [ ] **Step 5: Verify and commit**
 
 ```bash
 ./tests/run
 bash -n lib/common.sh modules/aur.sh
-```
-
-Expected: PASS.
-
-- [ ] **Step 7: Commit**
-
-```bash
 git add get-arch lib/common.sh modules/aur.sh tests/test_common.sh tests/test_modules.sh
 git commit -m "feat: add isolated AUR installation"
 ```
 
 ---
 
-### Task 8: Wire the End-to-End Orchestrator and `--check` Flow
+### Task 8: End-to-End Orchestration and Check Mode
 
 **Files:**
 - Modify: `get-arch`
 - Create: `tests/test_orchestration.sh`
 
 **Interfaces:**
-- Consumes every public function defined in Tasks 1-7
-- Produces: `preflight`, `print_system_summary`, `run_workstation`, `main`
+- Produces: `preflight`, `print_system_summary`, `run_workstation`, final `main`
 
-- [ ] **Step 1: Write a failing orchestration-order test**
+- [ ] **Step 1: Write a failing orchestration test**
 
-Create `tests/test_orchestration.sh`. Source `get-arch`, replace each orchestration dependency with a function that appends its name to a temp file, and assert this sequence:
+Stub every dependency and assert exact order:
 
 ```text
 preflight
@@ -1213,40 +721,26 @@ ensure_aur_helper
 install_aur_packages
 ```
 
-Also assert `--check` reaches the same planning sequence while `run_mutation` prevents persistent changes.
+The same planning path must execute under `--check`; mutation helpers suppress actual changes.
 
-- [ ] **Step 2: Add `install_declared_official_packages` to the package library**
-
-In `lib/packages.sh`:
+- [ ] **Step 2: Implement preflight and summary**
 
 ```bash
-install_declared_official_packages() {
-  local packages=()
-  mapfile -t packages < <(load_official_packages)
-  ensure_packages "${packages[@]}"
+preflight() {
+  require_root
+  require_arch
+  require_command pacman
+  require_command systemctl
+  require_command runuser
+  validate_package_files
 }
 ```
 
-- [ ] **Step 3: Implement preflight and summary**
+Do not add a ping-to-Google network test. Package retrieval is the authoritative network operation; README documents connectivity as a precondition.
 
-`preflight` must:
+`print_system_summary` prints architecture, boot mode, machine type, battery presence, GPU vendors, and network interfaces.
 
-```bash
-require_root
-require_arch
-require_command pacman
-require_command systemctl
-require_command runuser
-validate_package_files
-```
-
-Do not add a ping-to-Google style network check. Package retrieval itself is the authoritative network operation; the README states the connectivity precondition.
-
-`print_system_summary` prints architecture, boot mode, machine type, battery presence, GPU vendors, and network interfaces without changing state.
-
-- [ ] **Step 4: Implement the orchestrator**
-
-`run_workstation` must contain only sequencing:
+- [ ] **Step 3: Implement only sequencing in `run_workstation`**
 
 ```bash
 run_workstation() {
@@ -1269,51 +763,33 @@ run_workstation() {
 }
 ```
 
-`main` parses arguments, initializes logging, and calls `run_workstation`.
+`main` parses options, initializes logging, and calls `run_workstation`.
 
-- [ ] **Step 5: Verify help/error paths and full test suite**
-
-Run:
+- [ ] **Step 4: Verify and commit**
 
 ```bash
 ./tests/run
 bash get-arch --help
 set +e; bash get-arch --bogus; test $? -eq 2
 bash -n get-arch lib/*.sh modules/*.sh
-```
-
-Expected: all tests PASS; help exits 0; invalid option exits 2.
-
-- [ ] **Step 6: Commit**
-
-```bash
-git add get-arch lib/packages.sh tests/test_orchestration.sh
+git add get-arch tests/test_orchestration.sh
 git commit -m "feat: orchestrate workstation configuration"
 ```
 
 ---
 
-### Task 9: Reconcile and Populate the Default Workstation Package Groups
+### Task 9: Reconcile the Default Package Set Against the Current Laptop
 
 **Files:**
-- Modify: `packages/desktop`
-- Modify: `packages/development`
-- Modify: `packages/data-science`
-- Modify: `packages/documents`
-- Modify: `packages/media`
-- Modify: `packages/utilities`
-- Modify: `packages/aur`
+- Modify: `packages/{desktop,development,data-science,documents,media,utilities,aur}`
 - Modify: `tests/test_packages.sh`
 
 **Interfaces:**
-- Consumes the package parser from Task 3
 - Produces the canonical all-on-by-default workstation package set
 
-This task must be performed on the current Arch laptop because the approved design explicitly uses its explicit-package inventory as one of the inputs.
+This task runs on the current Arch laptop because the approved design explicitly uses that machine's explicit-package inventory as an input.
 
-- [ ] **Step 1: Capture current explicit package inventories outside the repository**
-
-Run:
+- [ ] **Step 1: Capture inventories outside the repository**
 
 ```bash
 pacman -Qqen | sort -u > /tmp/get-arch-explicit-packages.txt
@@ -1322,256 +798,169 @@ pacman -Qqem | sort -u > /tmp/get-arch-foreign-packages.txt
 
 Do not commit these files.
 
-- [ ] **Step 2: Seed the review from the active package intent in the old `configure`**
+- [ ] **Step 2: Seed the review from active old-repo intent**
 
-Use this classification as the starting review set; it reflects packages/functions actually reached by the old main flow, not commented-out optional modules:
+Start with these current equivalents/candidates:
 
 ```text
-desktop candidates:
+desktop:
   baobab chromium dconf-editor evince file-roller
   gnome-shell gnome-terminal gdm gnome-shell-extensions xdg-user-dirs
 
-development candidates:
+development:
   emacs gcc-fortran tcl tk
 
-data-science candidates:
+data-science:
   gsl
 
-documents candidates:
+documents:
   libreoffice-fresh
   texlive-basic texlive-latex texlive-latexrecommended
   texlive-latexextra texlive-bibtexextra texlive-mathscience
 
-media candidates:
+media:
   gimp vlc
 
-utilities candidates:
+utilities:
   zip unzip unrar htop ntfs-3g dosfstools exfatprogs fuse3
 
-legacy AUR candidates to keep only if still intentionally used/current:
+legacy AUR candidates, retained only if still intentionally used:
   megasync transmission-gtk-git teamviewer
 ```
 
-The following legacy entries are intentionally **not** copied into package files:
+Do not copy these old implementation packages into canonical lists:
 
 ```text
 pulseaudio pulseaudio-alsa lib32-libpulse
 alsa-plugins lib32-alsa-plugins
 xorg-server xf86-input-synaptics xf86-input-mouse xf86-input-keyboard
-xf86-video-intel xf86-video-ati vesa-era driver packages
-intel-dri ati-dri mesa-libgl lib32-mesa-libgl
-exfat-utils fuse-exfat
-flashplugin
-gnome-screenshot
-gnome-tweak
-jdk8-openjdk
-pakku and its bootstrap dependencies
-grub2-theme-archxion-widescreen
+xf86-video-* intel-dri ati-dri mesa-libgl lib32-mesa-libgl
+exfat-utils fuse-exfat flashplugin gnome-screenshot gnome-tweak
+jdk8-openjdk pakku grub2-theme-archxion-widescreen
 ```
 
-Reasons are already owned elsewhere: PipeWire replaces the PulseAudio setup, modern GNOME uses libinput/Wayland paths, graphics packages are detected by `graphics.sh`, `exfatprogs` replaces the old exFAT userspace package pairing, Flash is obsolete, the old GNOME screenshot/tweak package names are obsolete/superseded, and bootloader cosmetics are outside the post-install core.
+Do not automatically replace `jdk8-openjdk`; add a current JDK only if the current laptop or a concrete workstation requirement justifies Java.
 
-Do **not** automatically replace `jdk8-openjdk` with the current JDK unless the current laptop inventory or an actual workstation requirement justifies Java.
+- [ ] **Step 3: Review current-laptop additions using explicit rules**
 
-- [ ] **Step 3: Compare the laptop against the seed and categorize additions**
+For each package on the laptop but absent from the seed:
 
-Produce normalized declared candidates in `/tmp`, then use `comm`:
+1. Add it only if a reinstall should reproduce it as part of the normal workstation.
+2. Prefer top-level applications/capabilities over incidentally explicit dependencies.
+3. Exclude hardware-specific packages; hardware modules own them.
+4. Exclude `networkmanager`, PipeWire/WirePlumber, OpenSSH, sudo, and `power-profiles-daemon`; modules own them.
+5. Put each official package in exactly one functional group.
+6. Put foreign packages in `packages/aur` only after confirming they are intentionally retained and still available through the AUR path.
+7. Drop old candidates no longer intentionally used.
 
-```bash
-cat /tmp/get-arch-explicit-packages.txt > /tmp/get-arch-current-official.txt
-cat /tmp/get-arch-foreign-packages.txt > /tmp/get-arch-current-foreign.txt
-```
-
-For each package present on the laptop but absent from the seed, apply these rules:
-
-1. Add it only if it is part of the normal workstation you want reproduced after reinstall.
-2. Do not add dependencies merely because they were manually marked explicit; prefer the highest-level package that represents the capability.
-3. Do not add hardware-specific packages; `graphics.sh`/`laptop.sh` own those.
-4. Do not add NetworkManager, PipeWire/WirePlumber, OpenSSH, sudo, or `power-profiles-daemon`; their modules own them.
-5. Put official packages in exactly one functional group.
-6. Put foreign packages in `packages/aur` only after confirming they are intentionally retained and available from the AUR path.
-7. Remove old candidates that are no longer intentionally used, even if they still exist in Arch.
-
-- [ ] **Step 4: Validate every official package against the current repositories**
-
-After editing the six official files:
+- [ ] **Step 4: Validate official package names live**
 
 ```bash
 while IFS= read -r pkg; do
-  pacman -Si "$pkg" >/dev/null || {
-    printf 'Missing official package: %s\n' "$pkg" >&2
-    exit 1
-  }
-done < <(
-  REPO_ROOT=$PWD
-  source lib/packages.sh
-  load_official_packages
-)
+  pacman -Si "$pkg" >/dev/null || { echo "Missing official package: $pkg" >&2; exit 1; }
+done < <(REPO_ROOT=$PWD; source lib/packages.sh; load_official_packages)
 ```
 
-Expected: every package resolves in configured official repositories.
+Expected: all resolve.
 
-- [ ] **Step 5: Validate AUR names without installing them**
+- [ ] **Step 5: Validate selected AUR names without installing them**
 
-For every selected `packages/aur` entry, verify its current AUR package page or `paru -Si PACKAGE` once `paru` is available. Remove stale package names rather than carrying compatibility aliases.
+For each selected entry, confirm its current AUR package or use `paru -Si PACKAGE` after `paru` exists. Remove stale names instead of keeping aliases.
 
-- [ ] **Step 6: Add regression assertions for key modernization outcomes**
-
-Extend `tests/test_packages.sh` to assert the canonical lists do **not** contain known obsolete entries:
+- [ ] **Step 6: Add regression tests against known obsolete entries**
 
 ```bash
 all=$(cat packages/*)
 for obsolete in pulseaudio flashplugin pakku xf86-input-synaptics exfat-utils fuse-exfat; do
-  [[ "$all" != *"$obsolete"* ]] || {
-    printf 'FAIL: obsolete package retained: %s\n' "$obsolete" >&2
-    exit 1
-  }
+  [[ "$all" != *"$obsolete"* ]] || { echo "obsolete package retained: $obsolete" >&2; exit 1; }
 done
+validate_package_files
 ```
 
-Also run `validate_package_files` against the real repository.
-
-- [ ] **Step 7: Run tests**
-
-Run:
+- [ ] **Step 7: Verify and commit**
 
 ```bash
 ./tests/run
-```
-
-Expected: PASS.
-
-- [ ] **Step 8: Commit**
-
-```bash
 git add packages/ tests/test_packages.sh
 git commit -m "feat: define default workstation packages"
 ```
 
 ---
 
-### Task 10: Add Static CI, Rewrite the README, and Remove the Legacy Implementation
+### Task 10: CI, Documentation, Legacy Removal, and Acceptance
 
 **Files:**
 - Create: `.github/workflows/test.yml`
 - Modify: `README.md`
-- Delete: `install`
-- Delete: `configure`
-- Delete: `configure~`
-- Delete: `sharedfuncs`
+- Delete: `install`, `configure`, `configure~`, `sharedfuncs`
 
 **Interfaces:**
 - No new runtime API
-- Produces the documented bootstrap/user workflow and CI verification path
 
-- [ ] **Step 1: Add a failing/static verification command locally**
-
-Before adding CI, run:
+- [ ] **Step 1: Run ShellCheck before wiring CI**
 
 ```bash
 shellcheck get-arch lib/*.sh modules/*.sh tests/*.sh tests/run
 ```
 
-If ShellCheck is not installed on the development machine, install `shellcheck` from the official Arch repositories for development only. Fix real findings; do not suppress warnings globally.
+Install `shellcheck` from official Arch repositories on the development machine if needed. Fix real findings; do not globally suppress warnings.
 
-- [ ] **Step 2: Add GitHub Actions for deterministic checks only**
+- [ ] **Step 2: Add deterministic GitHub Actions only**
 
-Create `.github/workflows/test.yml`:
+`.github/workflows/test.yml`:
 
 ```yaml
 name: test
-
 on:
   push:
     branches: [master]
-    paths-ignore:
-      - 'docs/**'
-      - 'README.md'
+    paths-ignore: ['docs/**', 'README.md']
   pull_request:
-    paths-ignore:
-      - 'docs/**'
-      - 'README.md'
-
+    paths-ignore: ['docs/**', 'README.md']
 jobs:
   test:
     runs-on: ubuntu-latest
     container: archlinux:latest
     steps:
       - uses: actions/checkout@v4
-      - name: Install test dependencies
-        run: pacman -Syu --noconfirm shellcheck
-      - name: Bash syntax
-        run: bash -n get-arch lib/*.sh modules/*.sh tests/*.sh tests/run
-      - name: ShellCheck
-        run: shellcheck get-arch lib/*.sh modules/*.sh tests/*.sh tests/run
-      - name: Unit tests
-        run: ./tests/run
+      - run: pacman -Syu --noconfirm shellcheck
+      - run: bash -n get-arch lib/*.sh modules/*.sh tests/*.sh tests/run
+      - run: shellcheck get-arch lib/*.sh modules/*.sh tests/*.sh tests/run
+      - run: ./tests/run
 ```
 
-CI intentionally does not attempt a fake bare-metal workstation installation.
+Do not simulate a bare-metal Arch installation in CI.
 
-- [ ] **Step 3: Rewrite the README around the two-stage flow**
+- [ ] **Step 3: Rewrite README around the two-stage contract**
 
-The README must contain these concrete sections:
-
-1. **Purpose** — post-install Arch GNOME workstation configurator.
-2. **Stage 1: install Arch** — use `archinstall`; obtain a bootable network-connected system. Disk/filesystem/bootloader choices are outside this repository.
-3. **Bootstrap Git if needed**:
-
-```bash
-pacman -Syu --needed git
-```
-
-4. **Retrieve and inspect**:
-
-```bash
-git clone https://github.com/ppanko/get-arch.git
-cd get-arch
-./get-arch --check
-```
-
-5. **Configure**:
-
-```bash
-./get-arch
-```
-
-Run as root; explain that the script prompts only for username/hostname and uses normal `passwd` interaction for a newly created user.
-
-6. **Diagnostics**:
-
-```bash
-./get-arch --verbose
-```
-
-7. **Package groups** — explain the six official groups plus AUR and that all are installed by default.
-8. **Laptop/desktop behavior** — detection is automatic; no machine profile exists.
-9. **Recovery** — fix the failed underlying operation and rerun the whole command.
-10. **Package inventory maintenance** — document:
-
-```bash
-pacman -Qqen
-pacman -Qqem
-```
-
-as review inputs when refreshing defaults.
-
-- [ ] **Step 4: Remove all four legacy files**
-
-Delete:
+README must document:
 
 ```text
-install
-configure
-configure~
-sharedfuncs
+Purpose
+Stage 1: use archinstall; produce a bootable network-connected Arch system
+Bootstrap Git if missing: pacman -Syu --needed git
+Clone repository
+Run ./get-arch --check as root
+Run ./get-arch as root
+Run ./get-arch --verbose for diagnosis
+Username/hostname are the only prompts; passwd is normal system interaction
+All package groups are installed by default
+Laptop/desktop/GPU behavior is detected
+Recovery is fix underlying failure, rerun whole command
+Package-maintenance inputs: pacman -Qqen and pacman -Qqem
 ```
 
-Do not retain a `legacy/` copy. Git history is the archive.
+Do not tell a minimal system to use `sudo` before `get-arch` has installed/configured sudo; the bootstrap path is a root shell.
 
-- [ ] **Step 5: Run the complete automated verification**
+- [ ] **Step 4: Remove the legacy implementation completely**
 
-Run:
+```bash
+git rm install configure configure~ sharedfuncs
+```
+
+Do not create `legacy/`; Git history is the archive.
+
+- [ ] **Step 5: Run complete automated verification**
 
 ```bash
 ./tests/run
@@ -1579,25 +968,19 @@ bash -n get-arch lib/*.sh modules/*.sh tests/*.sh tests/run
 shellcheck get-arch lib/*.sh modules/*.sh tests/*.sh tests/run
 ```
 
-Expected: all commands exit 0.
+Expected: all exit 0.
 
-- [ ] **Step 6: Run non-destructive acceptance checks on real Arch systems**
+- [ ] **Step 6: Run non-destructive real-system acceptance**
 
-On the current laptop:
-
-```bash
-sudo ./get-arch --check
-```
-
-Verify the summary reports `laptop`, the actual GPU vendor set, and the expected network interfaces. Verify every subsequent action is shown as `[CHECK]`/informational output and no packages, files, users, hostnames, or services change.
-
-On a desktop or desktop-like Arch VM:
+On the current laptop, from a root shell:
 
 ```bash
-sudo ./get-arch --check
+./get-arch --check
 ```
 
-Verify it reports `desktop` and explicitly skips laptop-specific configuration.
+Verify it reports `laptop`, the actual GPU vendor set, and actual network interfaces. Verify every mutating action is only planned and that packages, files, users, hostname, and services remain unchanged.
+
+On a desktop or desktop-like Arch VM, run the same check and verify `desktop` plus an explicit laptop-module skip.
 
 - [ ] **Step 7: Commit**
 
@@ -1611,40 +994,12 @@ git commit -m "chore: complete get-arch modernization"
 
 ## Final Verification Before Review
 
-- [ ] Run all deterministic tests:
-
-```bash
-./tests/run
-```
-
-Expected: PASS.
-
-- [ ] Run parser/static checks:
-
-```bash
-bash -n get-arch lib/*.sh modules/*.sh tests/*.sh tests/run
-shellcheck get-arch lib/*.sh modules/*.sh tests/*.sh tests/run
-```
-
-Expected: exit 0 with no ShellCheck findings.
-
-- [ ] Verify no legacy implementation remains:
-
-```bash
-for path in install configure configure~ sharedfuncs; do
-  [[ ! -e "$path" ]] || { echo "legacy file remains: $path"; exit 1; }
-done
-```
-
-- [ ] Verify forbidden old implementation/package terms are absent from runtime code and canonical package lists (design/history docs excluded):
-
-```bash
-! grep -RInE 'pakku|flashplugin|pulseaudio-alsa|xf86-input-synaptics|fuse-exfat|CONNECTION=|VIDEO_DRIVER=|DEVICETYPE=' \
-  get-arch lib modules packages README.md
-```
-
-- [ ] Verify `--check` on the current laptop makes no persistent changes and identifies the laptop/GPU correctly.
-
-- [ ] Verify GitHub Actions passes on the implementation PR.
-
-- [ ] Review the final diff against `docs/superpowers/specs/2026-09-16-modernize-get-arch-design.md`, specifically checking that no disk, bootloader, filesystem, encryption, multi-DE, profile, or general config-engine scope has re-entered the implementation.
+- [ ] `./tests/run` passes.
+- [ ] `bash -n get-arch lib/*.sh modules/*.sh tests/*.sh tests/run` exits 0.
+- [ ] `shellcheck get-arch lib/*.sh modules/*.sh tests/*.sh tests/run` has no findings.
+- [ ] `install`, `configure`, `configure~`, and `sharedfuncs` no longer exist.
+- [ ] Runtime code/package lists contain none of: `pakku`, `flashplugin`, `pulseaudio-alsa`, `xf86-input-synaptics`, `fuse-exfat`, `CONNECTION=`, `VIDEO_DRIVER=`, `DEVICETYPE=`.
+- [ ] `./get-arch --check` on the current laptop makes no persistent change and identifies laptop/GPU state correctly.
+- [ ] `./get-arch --check` on a desktop/VM skips laptop-specific work.
+- [ ] GitHub Actions passes on the implementation PR.
+- [ ] Final diff contains no disk, bootloader, filesystem, encryption, multi-DE, machine-profile, or general config-engine scope.
