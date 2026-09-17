@@ -62,10 +62,18 @@ detect_network_interfaces() {
 }
 
 detect_system() {
+  # These globals are the public result of detection and are consumed by
+  # the orchestrator and hardware modules after this file is sourced.
+  # shellcheck disable=SC2034
   SYSTEM_ARCH=$(detect_architecture)
+  # shellcheck disable=SC2034
   BOOT_MODE=$(detect_boot_mode)
+  # shellcheck disable=SC2034
   MACHINE_TYPE=$(detect_machine_type)
+  # shellcheck disable=SC2034
   if detect_has_battery; then HAS_BATTERY=1; else HAS_BATTERY=0; fi
+  # shellcheck disable=SC2034
   mapfile -t GPU_VENDORS < <(detect_gpu_vendors)
+  # shellcheck disable=SC2034
   mapfile -t NETWORK_INTERFACES < <(detect_network_interfaces)
 }

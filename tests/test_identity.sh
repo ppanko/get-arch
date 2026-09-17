@@ -6,11 +6,11 @@ source lib/packages.sh
 source modules/identity.sh
 
 validate_username pavel
-! validate_username 'Pavel Smith'
-! validate_username '-root'
+if validate_username 'Pavel Smith'; then echo 'FAIL: invalid username accepted' >&2; exit 1; fi
+if validate_username '-root'; then echo 'FAIL: invalid username accepted' >&2; exit 1; fi
 validate_hostname arch-laptop
-! validate_hostname '-arch'
-! validate_hostname 'arch_1'
+if validate_hostname '-arch'; then echo 'FAIL: invalid hostname accepted' >&2; exit 1; fi
+if validate_hostname 'arch_1'; then echo 'FAIL: invalid hostname accepted' >&2; exit 1; fi
 
 tmp=$(mktemp -d)
 trap 'rm -rf "$tmp"' EXIT

@@ -31,7 +31,7 @@ validate_package_files() {
   for file in "$REPO_ROOT"/packages/*; do
     [[ -f "$file" ]] || continue
     while IFS= read -r entry; do
-      [[ $entry =~ ^[[:alnum:]@._+:-]+$ ]] || die "Invalid package entry '$entry' in ${file#$REPO_ROOT/}"
+      [[ $entry =~ ^[[:alnum:]@._+:-]+$ ]] || die "Invalid package entry '$entry' in ${file#"$REPO_ROOT"/}"
     done < <(parse_package_file "$file")
   done
 }

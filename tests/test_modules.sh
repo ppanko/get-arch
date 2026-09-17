@@ -70,20 +70,18 @@ trap 'rm -rf "$aur_tmp"' EXIT
 
 mkdir -p "$aur_tmp/no-paru-bin"
 ln -s "$(command -v cat)" "$aur_tmp/no-paru-bin/cat"
-CALLS=''; PATH="$aur_tmp/no-paru-bin"
-ensure_aur_helper
+CALLS=''
+PATH="$aur_tmp/no-paru-bin" ensure_aur_helper
 assert_contains "$CALLS" 'packages:base-devel git rust' 'paru bootstrap dependencies'
 assert_contains "$CALLS" 'user:pavel:Build paru AUR helper:bash -lc' 'paru built as user'
 
-PATH=$orig_path
 cat > "$aur_tmp/paru" <<'SH'
 #!/usr/bin/env bash
 exit 0
 SH
 chmod +x "$aur_tmp/paru"
-PATH="$aur_tmp:$orig_path"
 CALLS=''
-ensure_aur_helper
+PATH="$aur_tmp:$orig_path" ensure_aur_helper
 [[ "$CALLS" != *'packages:'* && "$CALLS" != *'user:'* ]] || { echo 'FAIL: installed paru bootstrapped again' >&2; exit 1; }
 
 CALLS=''; AUR_FIXTURE=(foo bar)
