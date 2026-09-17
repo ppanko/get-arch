@@ -3,4 +3,5 @@ emacs
 gcc-fortran
 git
 github-cli
+openai-codex
 ripgrep
