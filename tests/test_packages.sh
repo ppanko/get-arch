@@ -44,17 +44,17 @@ validate_package_files
 official=$(load_official_packages)
 aur=$(load_aur_packages)
 
-for required in chromium git r libreoffice-still vlc ufw; do
+for required in chromium git r libreoffice-still vlc ufw openai-codex; do
   grep -Fxq "$required" <<< "$official" || {
     printf 'FAIL: canonical package set missing %s\n' "$required" >&2
     exit 1
   }
 done
 
-grep -Fxq openai-codex-bin <<< "$aur" || {
-  printf 'FAIL: canonical AUR package set missing openai-codex-bin\n' >&2
+if grep -Fxq openai-codex-bin <<< "$aur"; then
+  printf 'FAIL: official openai-codex package retained as AUR openai-codex-bin\n' >&2
   exit 1
-}
+fi
 
 all_packages="$official"$'\n'"$aur"
 for obsolete in pulseaudio flashplugin pakku xf86-input-synaptics exfat-utils fuse-exfat; do
