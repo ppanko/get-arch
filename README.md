@@ -90,11 +90,16 @@ contains more than one normal login account, select one explicitly:
 
 Installation mode reads the hostname and existing login accounts created by
 Archinstall. It does not create users, change passwords, set the hostname, or
-perform the normal full-system upgrade. It installs the same workstation and
-hardware packages, enables required services for first boot without starting
-them, and performs all AUR builds in one PTY session as the selected user. The
-session requests normal sudo authentication; no passwordless installation
-policy is created.
+perform the normal full-system upgrade. It installs the official workstation
+and hardware packages and enables required services for first boot without
+starting them.
+
+AUR work is deliberately deferred in installation mode. Archinstall 4.4 does
+not provide a usable interactive stdin path for password prompts from
+`custom_commands`, so install mode never attempts `sudo`, `makepkg`, `paru`, or
+another target-user AUR session. Declared AUR packages are reported in the log
+as deferred and can be completed interactively after first boot. Normal
+`./get-arch` mode retains the existing interactive AUR behavior.
 
 For a non-destructive inspection from inside the target chroot, add `--check`:
 
