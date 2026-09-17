@@ -132,8 +132,10 @@ assert_contains "$CALLS" 'skip:Laptop-specific configuration not required' 'desk
 run_as_user_mutation() {
   local user=$1 label=$2
   shift 2
+  USER_CALL_COUNT=$((USER_CALL_COUNT + 1))
   CALLS+="user:$user:$label:$*"$'\n'
 }
+USER_CALL_COUNT=0
 AUR_FIXTURE=()
 load_aur_packages() { ((${#AUR_FIXTURE[@]})) && printf '%s\n' "${AUR_FIXTURE[@]}"; }
 USERNAME=pavel
@@ -166,3 +168,14 @@ assert_contains "$CALLS" 'user:pavel:Install AUR packages: foo bar:paru -S --nee
 CALLS=''; AUR_FIXTURE=()
 install_aur_packages
 [[ "$CALLS" != *'user:'* ]] || { echo 'FAIL: empty AUR list invoked user mutation' >&2; exit 1; }
+
+CALLS=''; USER_CALL_COUNT=0; AUR_FIXTURE=(foo bar); INSTALL_MODE=1
+install_aur_packages_install_mode
+assert_eq 1 "$USER_CALL_COUNT" 'install mode uses one target-user PTY session for all AUR work'
+assert_contains "$CALLS" 'packages:base-devel git rust' 'root installs only official AUR build prerequisites'
+assert_contains "$CALLS" 'user:pavel:Provision AUR packages: foo bar:bash -lc' 'combined AUR session runs as selected user'
+assert_contains "$CALLS" 'sudo -v' 'combined AUR session authenticates sudo once up front'
+assert_contains "$CALLS" 'git clone https://aur.archlinux.org/paru.git' 'paru source is cloned by target user'
+assert_contains "$CALLS" 'makepkg -si --needed --noconfirm' 'paru is built unprivileged and installed through makepkg privilege boundary'
+assert_contains "$CALLS" 'paru -S --needed --noconfirm -- "${packages[@]}"' 'declared AUR packages share the authenticated user session'
+[[ "$CALLS" != *'NOPASSWD'* ]] || { echo 'FAIL: install mode introduced passwordless sudo' >&2; exit 1; }
