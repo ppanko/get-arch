@@ -177,5 +177,7 @@ assert_contains "$CALLS" 'user:pavel:Provision AUR packages: foo bar:bash -lc' '
 assert_contains "$CALLS" 'sudo -v' 'combined AUR session authenticates sudo once up front'
 assert_contains "$CALLS" 'git clone https://aur.archlinux.org/paru.git' 'paru source is cloned by target user'
 assert_contains "$CALLS" 'makepkg -si --needed --noconfirm' 'paru is built unprivileged and installed through makepkg privilege boundary'
+# The expected string is the literal code passed to the target-user shell.
+# shellcheck disable=SC2016
 assert_contains "$CALLS" 'paru -S --needed --noconfirm -- "${packages[@]}"' 'declared AUR packages share the authenticated user session'
 [[ "$CALLS" != *'NOPASSWD'* ]] || { echo 'FAIL: install mode introduced passwordless sudo' >&2; exit 1; }

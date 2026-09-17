@@ -70,6 +70,42 @@ If a run stops, fix the underlying error and rerun `./get-arch`. Configuration s
 
 A reboot is recommended after a successful first run.
 
+## Archinstall target provisioning
+
+`get-arch` also has an installation mode intended for an Archinstall
+`custom_commands` entry after the repository has been made available inside
+the installed target:
+
+```bash
+./get-arch --install-mode
+```
+
+Archinstall already runs custom commands inside the target system, so this
+command must be invoked directly without another `arch-chroot`. If the target
+contains more than one normal login account, select one explicitly:
+
+```bash
+./get-arch --install-mode --user pavel
+```
+
+Installation mode reads the hostname and existing login accounts created by
+Archinstall. It does not create users, change passwords, set the hostname, or
+perform the normal full-system upgrade. It installs the same workstation and
+hardware packages, enables required services for first boot without starting
+them, and performs all AUR builds in one PTY session as the selected user. The
+session requests normal sudo authentication; no passwordless installation
+policy is created.
+
+For a non-destructive inspection from inside the target chroot, add `--check`:
+
+```bash
+./get-arch --install-mode --check
+```
+
+The reusable stage-1 preset currently remains intentionally partial and does
+not yet contain the custom-command hook. That hook will be added separately
+once an immutable merged revision containing installation mode is available.
+
 ## Package maintenance
 
 To compare the repository with a current workstation, capture explicitly installed official and foreign packages:

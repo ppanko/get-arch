@@ -24,11 +24,11 @@ normal_uid_bounds() {
 }
 
 normal_login_users() {
-  local username password uid gid gecos home shell uid_min uid_max passwd_file
+  local username uid shell uid_min uid_max passwd_file
   passwd_file=$(system_path /etc/passwd)
   [[ -r $passwd_file ]] || return 0
   read -r uid_min uid_max < <(normal_uid_bounds)
-  while IFS=: read -r username password uid gid gecos home shell; do
+  while IFS=: read -r username _ uid _ _ _ shell; do
     [[ $uid =~ ^[0-9]+$ ]] || continue
     (( uid >= uid_min && uid <= uid_max )) || continue
     validate_username "$username" || continue
