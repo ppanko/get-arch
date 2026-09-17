@@ -4,19 +4,33 @@
 
 ## 1. Install Arch
 
-Use `archinstall` to create a bootable, network-connected Arch system, then reboot into it and log in as root. Select **NetworkManager** for the installed system's network configuration. `get-arch` deliberately refuses to enable NetworkManager while another network manager such as `systemd-networkd`, `dhcpcd` (including per-interface `dhcpcd@...` units), standalone IWD, or ConnMan is active or enabled; it will not attempt a live network-manager handoff underneath the connection being used for installation.
-
-If Git is not already installed:
+From the Arch ISO, start the guided installer with the repository's reusable stage-1 preset:
 
 ```bash
-pacman -Syu --needed git
+archinstall --config-url https://raw.githubusercontent.com/ppanko/get-arch/master/archinstall/get-arch.json
 ```
 
-Retrieve the repository:
+The preset supplies only portable workstation policy: the **Minimal** profile, the `linux` kernel, **NetworkManager**, NTP, and Git. It deliberately does not specify disks, partitioning, encryption, bootloader, credentials, hostname, locale, or timezone. Complete those machine-specific choices in the guided installer, then install and reboot.
+
+The same preset can be used from a local clone with:
+
+```bash
+archinstall --config archinstall/get-arch.json
+```
+
+Do not replace NetworkManager with another installed-system network manager. `get-arch` deliberately refuses to enable NetworkManager while another manager such as `systemd-networkd`, `dhcpcd` (including per-interface `dhcpcd@...` units), standalone IWD, or ConnMan is active or enabled; it will not attempt a live network-manager handoff underneath the connection being used for installation.
+
+After reboot, log in as root. Git is included by the stage-1 preset, so retrieve the repository:
 
 ```bash
 git clone https://github.com/ppanko/get-arch.git
 cd get-arch
+```
+
+If Git is unavailable for any reason, install it first with:
+
+```bash
+pacman -Syu --needed git
 ```
 
 ## 2. Inspect the plan
