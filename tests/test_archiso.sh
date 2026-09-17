@@ -73,6 +73,7 @@ assert "grep -Fxc '~/.automated_script.sh'" in text
 assert 'bash /root/get-arch-install' in text
 assert 'mkarchiso -v -w "$work_dir" -o "$build_output" "$profile_dir"' in text
 assert 'trap cleanup EXIT HUP INT TERM' in text
+assert 'unshare --map-auto --map-root-user -- rm -rf -- "$tmp_root"' in text
 
 copy_profile = 'cp -a -- "$RELENG_DIR" "$profile_dir"'
 copy_preset = 'cp -- "$PRESET" "$profile_dir/airootfs/root/get-arch.json"'
