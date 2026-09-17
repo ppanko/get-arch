@@ -12,6 +12,23 @@ validate_hostname arch-laptop
 if validate_hostname '-arch'; then echo 'FAIL: invalid hostname accepted' >&2; exit 1; fi
 if validate_hostname 'arch_1'; then echo 'FAIL: invalid hostname accepted' >&2; exit 1; fi
 
+# Existing system accounts must never be accepted as the workstation user.
+(
+  id() {
+    [[ ${1:-} == -u ]] || return 1
+    case ${2:-} in
+      pavel) printf '1000\n' ;;
+      root) printf '0\n' ;;
+      nobody) printf '65534\n' ;;
+      *) return 1 ;;
+    esac
+  }
+  validate_target_user pavel || { echo 'FAIL: normal existing user rejected' >&2; exit 1; }
+  validate_target_user newuser || { echo 'FAIL: new normal username rejected' >&2; exit 1; }
+  if validate_target_user root; then echo 'FAIL: root accepted as workstation user' >&2; exit 1; fi
+  if validate_target_user nobody; then echo 'FAIL: system account accepted as workstation user' >&2; exit 1; fi
+)
+
 tmp=$(mktemp -d)
 trap 'rm -rf "$tmp"' EXIT
 mkdir -p "$tmp/bin" "$tmp/etc/sudoers.d"
@@ -56,6 +73,7 @@ if [[ ${1:-} == --static ]]; then printf 'oldhost\n'; else printf 'hostnamectl %
 SH
 cat > "$tmp/bin/passwd" <<'SH'
 #!/usr/bin/env bash
+if [[ ${1:-} == -S ]]; then printf '%s P 2026-09-17 0 99999 7 -1\n' "$2"; exit 0; fi
 printf 'passwd %s\n' "$*" >> "$CALLS"
 SH
 chmod +x "$tmp/bin/"*
@@ -94,7 +112,19 @@ calls=$(cat "$CALLS")
 [[ "$calls" != *'useradd '* ]] || { echo 'FAIL: existing user recreated' >&2; exit 1; }
 [[ "$calls" != *'usermod '* ]] || { echo 'FAIL: wheel membership changed unnecessarily' >&2; exit 1; }
 [[ "$calls" != *'hostnamectl set-hostname'* ]] || { echo 'FAIL: unchanged hostname reset' >&2; exit 1; }
-[[ "$calls" != *'passwd '* ]] || { echo 'FAIL: existing user password prompted' >&2; exit 1; }
+[[ "$calls" != *'passwd pavel'* ]] || { echo 'FAIL: usable existing password prompted' >&2; exit 1; }
+
+# A partially completed prior run must recover by setting a locked user's password.
+cat > "$tmp/bin/passwd" <<'SH'
+#!/usr/bin/env bash
+if [[ ${1:-} == -S ]]; then printf '%s L 2026-09-17 0 99999 7 -1\n' "$2"; exit 0; fi
+printf 'passwd %s\n' "$*" >> "$CALLS"
+SH
+chmod +x "$tmp/bin/passwd"
+: > "$CALLS"
+configure_identity
+calls=$(cat "$CALLS")
+assert_contains "$calls" 'passwd pavel' 'locked existing user password retried on rerun'
 
 # Check mode must work on a minimal system where sudo/visudo is not installed yet.
 rm -f "$GET_ARCH_ROOT/etc/sudoers.d/10-wheel"

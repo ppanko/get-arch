@@ -8,6 +8,16 @@ ensure_service_enabled() { CALLS+="enable:$1"$'\n'; }
 ensure_service_started() { CALLS+="start:$1"$'\n'; }
 log_skip() { CALLS+="skip:$*"$'\n'; }
 log_info() { CALLS+="info:$*"$'\n'; }
+die() { CALLS+="die:$*"$'\n'; return 1; }
+
+NETWORK_CONFLICT=''
+systemctl() {
+  local action=${1:-} unit=${3:-${2:-}}
+  if [[ ($action == is-enabled || $action == is-active) && -n ${NETWORK_CONFLICT:-} && $unit == "$NETWORK_CONFLICT" ]]; then
+    return 0
+  fi
+  return 1
+}
 
 after_source_modules() { :; }
 source modules/network.sh
@@ -18,6 +28,12 @@ source modules/ssh.sh
 CALLS=''; configure_network
 assert_eq $'packages:networkmanager\nenable:NetworkManager.service' "${CALLS%$'\n'}" 'network module contract'
 
+CALLS=''; NETWORK_CONFLICT=systemd-networkd.service
+if configure_network; then echo 'FAIL: conflicting network manager accepted' >&2; exit 1; fi
+assert_contains "$CALLS" 'die:Conflicting network manager systemd-networkd.service' 'network manager conflict is actionable'
+[[ "$CALLS" != *'packages:networkmanager'* ]] || { echo 'FAIL: NetworkManager installation planned despite conflict' >&2; exit 1; }
+NETWORK_CONFLICT=''
+
 CALLS=''; configure_audio
 assert_eq 'packages:pipewire pipewire-alsa pipewire-pulse wireplumber' "${CALLS%$'\n'}" 'audio module contract'
 
@@ -27,23 +43,43 @@ assert_eq $'packages:gnome-shell gnome-session gnome-control-center gnome-settin
 CALLS=''; configure_ssh
 assert_eq $'packages:openssh\nenable:sshd.service\nstart:sshd.service' "${CALLS%$'\n'}" 'ssh module contract'
 
+LEGACY_NVIDIA_PACKAGE=''
 pacman() {
+  if [[ ${1:-} == -Qq && $# -eq 1 ]]; then
+    [[ -n ${LEGACY_NVIDIA_PACKAGE:-} ]] && printf '%s\n' "$LEGACY_NVIDIA_PACKAGE"
+    return 0
+  fi
   if [[ ${1:-} == -Qq && ${2:-} == "${INSTALLED_KERNEL:-}" ]]; then
     return 0
   fi
   return 1
 }
-die() { CALLS+="die:$*"$'\n'; return 1; }
 source modules/graphics.sh
 source modules/laptop.sh
 
-CALLS=''; GPU_VENDORS=(intel amd); INSTALLED_KERNEL=''
+CALLS=''; GPU_VENDORS=(intel amd); NVIDIA_DEVICE_IDS=(); INSTALLED_KERNEL=''
 configure_graphics
 assert_eq 'packages:mesa vulkan-intel vulkan-radeon switcheroo-control' "${CALLS%$'\n'}" 'intel+amd graphics policy'
 
-CALLS=''; GPU_VENDORS=(nvidia); INSTALLED_KERNEL=linux
+CALLS=''; GPU_VENDORS=(nvidia); NVIDIA_DEVICE_IDS=(0x2191); INSTALLED_KERNEL=linux
 configure_graphics
-assert_eq 'packages:mesa nvidia-open-dkms nvidia-utils dkms linux-headers' "${CALLS%$'\n'}" 'nvidia graphics policy'
+assert_eq 'packages:mesa nvidia-open-dkms nvidia-utils dkms linux-headers' "${CALLS%$'\n'}" 'Turing NVIDIA graphics policy'
+
+CALLS=''; GPU_VENDORS=(nvidia); NVIDIA_DEVICE_IDS=(0x1c20); INSTALLED_KERNEL=linux; LEGACY_NVIDIA_PACKAGE=''
+if configure_graphics; then echo 'FAIL: legacy NVIDIA GPU accepted for nvidia-open' >&2; exit 1; fi
+assert_contains "$CALLS" 'die:NVIDIA device 0x1c20 predates Turing' 'legacy NVIDIA hardware stops with guidance'
+[[ "$CALLS" != *'nvidia-open-dkms'* ]] || { echo 'FAIL: legacy NVIDIA requested nvidia-open-dkms' >&2; exit 1; }
+
+CALLS=''; GPU_VENDORS=(nvidia); NVIDIA_DEVICE_IDS=(0x1c20); INSTALLED_KERNEL=linux; LEGACY_NVIDIA_PACKAGE=nvidia-580xx-dkms
+configure_graphics
+assert_contains "$CALLS" 'skip:Legacy NVIDIA driver already installed' 'preinstalled legacy NVIDIA driver is preserved'
+assert_contains "$CALLS" 'packages:mesa' 'legacy NVIDIA path still installs common Mesa support'
+[[ "$CALLS" != *'nvidia-open-dkms'* ]] || { echo 'FAIL: legacy NVIDIA with manual driver requested nvidia-open-dkms' >&2; exit 1; }
+LEGACY_NVIDIA_PACKAGE=''
+
+CALLS=''; GPU_VENDORS=(nvidia); NVIDIA_DEVICE_IDS=(); INSTALLED_KERNEL=linux
+if configure_graphics; then echo 'FAIL: NVIDIA GPU without device ID accepted' >&2; exit 1; fi
+assert_contains "$CALLS" 'die:NVIDIA detected, but its PCI device ID could not be determined' 'unknown NVIDIA generation fails closed'
 
 CALLS=''; MACHINE_TYPE=laptop
 configure_laptop
