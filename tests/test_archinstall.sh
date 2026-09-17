@@ -10,6 +10,7 @@ fi
 
 python - "$preset" <<'PY'
 import json
+import re
 import sys
 
 path = sys.argv[1]
@@ -29,6 +30,47 @@ assert config['profile_config'] == {
         'main': 'Minimal',
     },
 }, config.get('profile_config')
+
+pinned_revision = 'bde5f79e00db0f346e035c1a90366309274fedc6'
+custom_commands = config.get('custom_commands')
+assert isinstance(custom_commands, list), custom_commands
+assert len(custom_commands) == 1, custom_commands
+
+command = custom_commands[0]
+lines = command.splitlines()
+assert lines[0] == 'set -euo pipefail', lines
+
+clone_command = (
+    'git clone --no-checkout https://github.com/ppanko/get-arch.git '
+    '/opt/get-arch'
+)
+checkout_command = (
+    f'git -C /opt/get-arch checkout --detach {pinned_revision}'
+)
+install_command = '/opt/get-arch/get-arch --install-mode'
+assert clone_command in lines, lines
+assert checkout_command in lines, lines
+assert install_command in lines, lines
+assert lines.index(clone_command) < lines.index(checkout_command), lines
+assert lines.index(checkout_command) < lines.index(install_command), lines
+
+assert re.findall(r'(?<![0-9a-f])[0-9a-f]{40}(?![0-9a-f])', command) == [
+    pinned_revision
+], command
+assert [line for line in lines if ' checkout ' in line] == [checkout_command], lines
+assert 'master' not in command, command
+assert 'HEAD' not in command, command
+assert 'arch-chroot' not in command, command
+assert '|| true' not in command, command
+assert 'set +e' not in command, command
+
+for forbidden_provisioning_step in (
+    'sudo -v',
+    'makepkg',
+    'paru',
+    'NOPASSWD',
+):
+    assert forbidden_provisioning_step not in command, forbidden_provisioning_step
 
 for unsafe_or_machine_specific in (
     'auth_config',
