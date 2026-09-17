@@ -1,0 +1,86 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+REPO_ROOT=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
+source "$REPO_ROOT/lib/common.sh"
+source "$REPO_ROOT/lib/detect.sh"
+source "$REPO_ROOT/lib/packages.sh"
+source "$REPO_ROOT/modules/identity.sh"
+source "$REPO_ROOT/modules/network.sh"
+source "$REPO_ROOT/modules/audio.sh"
+source "$REPO_ROOT/modules/graphics.sh"
+source "$REPO_ROOT/modules/laptop.sh"
+source "$REPO_ROOT/modules/desktop.sh"
+source "$REPO_ROOT/modules/ssh.sh"
+source "$REPO_ROOT/modules/aur.sh"
+
+usage() {
+  cat <<'EOF_USAGE'
+Usage: ./get-arch [--check] [--verbose] [--help]
+EOF_USAGE
+}
+
+parse_args() {
+  while (($#)); do
+    case "$1" in
+      --check) CHECK_MODE=1 ;;
+      --verbose) VERBOSE=1 ;;
+      --help) usage; return 10 ;;
+      *) printf 'Unknown option: %s\n' "$1" >&2; return 2 ;;
+    esac
+    shift
+  done
+}
+
+preflight() {
+  require_root
+  require_arch
+  require_command pacman
+  require_command systemctl
+  require_command runuser
+  validate_package_files
+}
+
+print_system_summary() {
+  local gpu_summary='none' network_summary='none'
+  ((${#GPU_VENDORS[@]})) && gpu_summary="${GPU_VENDORS[*]}"
+  ((${#NETWORK_INTERFACES[@]})) && network_summary="${NETWORK_INTERFACES[*]}"
+  printf 'System architecture: %s\n' "$SYSTEM_ARCH"
+  printf 'Boot mode: %s\n' "$BOOT_MODE"
+  printf 'Machine type: %s\n' "$MACHINE_TYPE"
+  printf 'Battery present: %s\n' "$HAS_BATTERY"
+  printf 'GPU vendors: %s\n' "$gpu_summary"
+  printf 'Network interfaces: %s\n' "$network_summary"
+}
+
+run_workstation() {
+  preflight
+  init_logging
+  detect_system
+  print_system_summary
+  prompt_identity
+  upgrade_system
+  configure_identity
+  configure_network
+  configure_audio
+  configure_graphics
+  configure_desktop
+  configure_laptop
+  configure_ssh
+  install_declared_official_packages
+  ensure_aur_helper
+  install_aur_packages
+  log_ok 'Workstation configuration complete; reboot is recommended.'
+}
+
+main() {
+  local parse_status=0
+  parse_args "$@" || parse_status=$?
+  [[ $parse_status -eq 10 ]] && return 0
+  [[ $parse_status -eq 0 ]] || return "$parse_status"
+  run_workstation
+}
+
+if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
+  main "$@"
+fi
