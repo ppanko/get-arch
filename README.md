@@ -4,7 +4,7 @@
 
 ## 1. Install Arch
 
-Use `archinstall` to create a bootable, network-connected Arch system, then reboot into it and log in as root. Select **NetworkManager** for the installed system's network configuration. `get-arch` deliberately refuses to enable NetworkManager while another network manager such as `systemd-networkd`, `dhcpcd`, or ConnMan is active or enabled; it will not attempt a live network-manager handoff underneath the connection being used for installation.
+Use `archinstall` to create a bootable, network-connected Arch system, then reboot into it and log in as root. Select **NetworkManager** for the installed system's network configuration. `get-arch` deliberately refuses to enable NetworkManager while another network manager such as `systemd-networkd`, `dhcpcd` (including per-interface `dhcpcd@...` units), standalone IWD, or ConnMan is active or enabled; it will not attempt a live network-manager handoff underneath the connection being used for installation.
 
 If Git is not already installed:
 

@@ -18,10 +18,6 @@ nvidia_open_supported_device_id() {
   (( 16#$device >= 16#1e00 ))
 }
 
-legacy_nvidia_driver_installed() {
-  pacman -Qq 2>/dev/null | grep -Eq '^nvidia-[0-9]+xx-dkms$'
-}
-
 configure_graphics() {
   local packages=(mesa) vendor item device legacy_device=''
   local headers=()
@@ -63,12 +59,8 @@ configure_graphics() {
   fi
 
   if (( has_legacy_nvidia )); then
-    if legacy_nvidia_driver_installed; then
-      log_skip 'Legacy NVIDIA driver already installed; preserving the manually selected legacy driver stack.'
-    else
-      die "NVIDIA device $legacy_device predates Turing. Current Arch nvidia-open is not appropriate; install the matching legacy NVIDIA DKMS driver, then rerun get-arch."
-      return 1
-    fi
+    die "NVIDIA device $legacy_device predates Turing. Legacy NVIDIA drivers are not managed automatically; select the correct legacy driver explicitly before rerunning get-arch."
+    return 1
   elif (( has_current_nvidia )); then
     append_unique nvidia-open-dkms
     append_unique nvidia-utils

@@ -65,5 +65,5 @@ run_as_user_mutation() {
     printf '\n'
     return 0
   fi
-  run_mutation "$label" runuser -u "$user" -- "$@"
+  run_mutation "$label" runuser --pty -u "$user" -- "$@"
 }

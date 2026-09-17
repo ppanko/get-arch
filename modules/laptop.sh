@@ -5,4 +5,5 @@ configure_laptop() {
     return 0
   fi
   ensure_packages power-profiles-daemon
+  ensure_service_enabled power-profiles-daemon.service
 }
