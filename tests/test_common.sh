@@ -39,3 +39,31 @@ output=$(run_as_user_mutation pavel 'user command' printf hello 2>&1)
 assert_eq '--pty -u pavel -- printf hello' "$(cat "$RUNUSER_CALLS")" 'user mutation isolates command in a pseudo-terminal'
 assert_contains "$output" 'interactive user output' 'user-scoped command output remains visible'
 assert_file_contains "$LOG_FILE" 'interactive user output'
+
+export SYSTEMCTL_CALLS="$tmp/systemctl-calls"
+systemctl() {
+  printf '%s\n' "$*" >> "$SYSTEMCTL_CALLS"
+  case " $* " in
+    *' is-enabled '*) return 1 ;;
+    *' is-active '*) return 1 ;;
+  esac
+  return 0
+}
+
+: > "$SYSTEMCTL_CALLS"
+INSTALL_MODE=1
+ensure_service_enabled sshd.service
+ensure_service_started sshd.service
+systemctl_calls=$(cat "$SYSTEMCTL_CALLS")
+assert_eq $'--root=/ is-enabled --quiet sshd.service\n--root=/ enable sshd.service' "$systemctl_calls" 'install mode enables against target root only'
+[[ $systemctl_calls != *'is-active'* && $systemctl_calls != *' start '* ]] || {
+  echo 'FAIL: install mode inspected or started a live service' >&2
+  exit 1
+}
+
+: > "$SYSTEMCTL_CALLS"
+INSTALL_MODE=0
+ensure_service_enabled sshd.service
+ensure_service_started sshd.service
+systemctl_calls=$(cat "$SYSTEMCTL_CALLS")
+assert_eq $'is-enabled --quiet sshd.service\nenable sshd.service\nis-active --quiet sshd.service\nstart sshd.service' "$systemctl_calls" 'normal mode retains enable-and-start semantics'

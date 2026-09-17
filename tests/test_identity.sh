@@ -145,3 +145,111 @@ CHECK_MODE=1
 output=$(PATH="$tmp/no-visudo-bin" configure_identity 2>&1)
 assert_contains "$output" 'sudo is not installed yet' 'check mode defers sudoers validation until sudo is installed'
 assert_eq '' "$(cat "$CALLS")" 'check mode without visudo makes no mutations'
+
+# Install mode discovers only existing normal login users and reads the
+# hostname without changing either identity.
+install_root="$tmp/install-root"
+mkdir -p "$install_root/etc/sudoers.d"
+cat > "$install_root/etc/login.defs" <<'EOF'
+UID_MIN 1000
+UID_MAX 60000
+EOF
+cat > "$install_root/etc/hostname" <<'EOF'
+installed-host
+EOF
+cat > "$install_root/etc/passwd" <<'EOF'
+root:x:0:0:root:/root:/bin/bash
+daemon:x:2:2:daemon:/sbin:/usr/bin/nologin
+pavel:x:1000:1000:Pavel:/home/pavel:/bin/bash
+EOF
+
+GET_ARCH_ROOT="$install_root"
+INSTALL_MODE=1
+USERNAME=''
+HOSTNAME_VALUE=''
+select_installed_identity
+assert_eq pavel "$USERNAME" 'single normal login user is selected'
+assert_eq installed-host "$HOSTNAME_VALUE" 'installed hostname is read'
+
+cat >> "$install_root/etc/passwd" <<'EOF'
+alice:x:1001:1001:Alice:/home/alice:/bin/zsh
+EOF
+USERNAME=alice
+select_installed_identity
+assert_eq alice "$USERNAME" 'explicit existing normal user is selected'
+
+USERNAME=''
+set +e
+output=$(select_installed_identity 2>&1); status=$?
+set -e
+assert_eq 1 "$status" 'multiple-user autodetection status'
+assert_contains "$output" 'Multiple normal login users found' 'multiple users require explicit selection'
+assert_contains "$output" '--user USER' 'multiple-user guidance'
+
+USERNAME=missing
+set +e
+output=$(select_installed_identity 2>&1); status=$?
+set -e
+assert_eq 1 "$status" 'missing explicit user status'
+assert_contains "$output" "User 'missing' is not an existing normal login user" 'missing explicit user rejected'
+
+cat > "$install_root/etc/passwd" <<'EOF'
+root:x:0:0:root:/root:/bin/bash
+daemon:x:2:2:daemon:/sbin:/usr/bin/nologin
+EOF
+USERNAME=''
+set +e
+output=$(select_installed_identity 2>&1); status=$?
+set -e
+assert_eq 1 "$status" 'zero-user autodetection status'
+assert_contains "$output" 'No normal login user found' 'zero-user failure is actionable'
+
+cat > "$install_root/etc/hostname" <<'EOF'
+-invalid-host
+EOF
+set +e
+output=$(select_installed_identity 2>&1); status=$?
+set -e
+assert_eq 1 "$status" 'invalid installed hostname status'
+assert_contains "$output" 'installed hostname is invalid' 'invalid installed hostname rejected'
+
+# Install-mode identity configuration may add wheel membership and the normal
+# sudo policy, but must not invoke any user, password, or hostname mutation.
+cat > "$install_root/etc/hostname" <<'EOF'
+installed-host
+EOF
+cat > "$install_root/etc/passwd" <<'EOF'
+root:x:0:0:root:/root:/bin/bash
+pavel:x:1000:1000:Pavel:/home/pavel:/bin/bash
+EOF
+cat > "$tmp/bin/id" <<'SH'
+#!/usr/bin/env bash
+if [[ ${1:-} == -u && ${2:-} == pavel ]]; then printf '1000\n'; exit 0; fi
+if [[ ${1:-} == -nG && ${2:-} == pavel ]]; then printf 'users\n'; exit 0; fi
+exit 1
+SH
+cat > "$tmp/bin/passwd" <<'SH'
+#!/usr/bin/env bash
+printf 'passwd %s\n' "$*" >> "$CALLS"
+exit 0
+SH
+cat > "$tmp/bin/hostnamectl" <<'SH'
+#!/usr/bin/env bash
+printf 'hostnamectl %s\n' "$*" >> "$CALLS"
+exit 0
+SH
+chmod +x "$tmp/bin/id" "$tmp/bin/passwd" "$tmp/bin/hostnamectl"
+CHECK_MODE=0
+LOG_FILE="$tmp/install-log"
+USERNAME=pavel
+HOSTNAME_VALUE=installed-host
+: > "$CALLS"
+rm -f "$install_root/etc/sudoers.d/10-wheel"
+configure_identity
+calls=$(cat "$CALLS")
+assert_contains "$calls" 'pacman -S --needed --noconfirm -- sudo' 'install mode ensures sudo'
+assert_contains "$calls" 'usermod -aG wheel pavel' 'install mode may preserve wheel policy'
+assert_file_contains "$install_root/etc/sudoers.d/10-wheel" '%wheel ALL=(ALL:ALL) ALL'
+[[ "$calls" != *'useradd '* ]] || { echo 'FAIL: install mode created a user' >&2; exit 1; }
+[[ "$calls" != *'passwd '* ]] || { echo 'FAIL: install mode inspected or changed a password' >&2; exit 1; }
+[[ "$calls" != *'hostnamectl '* ]] || { echo 'FAIL: install mode changed the hostname' >&2; exit 1; }

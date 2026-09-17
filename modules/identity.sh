@@ -23,6 +23,30 @@ normal_uid_bounds() {
   printf '%s %s\n' "$uid_min" "$uid_max"
 }
 
+normal_login_users() {
+  local username uid shell uid_min uid_max passwd_file
+  passwd_file=$(system_path /etc/passwd)
+  [[ -r $passwd_file ]] || return 0
+  read -r uid_min uid_max < <(normal_uid_bounds)
+  while IFS=: read -r username _ uid _ _ _ shell; do
+    [[ $uid =~ ^[0-9]+$ ]] || continue
+    (( uid >= uid_min && uid <= uid_max )) || continue
+    validate_username "$username" || continue
+    case "$shell" in
+      ''|*/false|*/nologin) continue ;;
+    esac
+    printf '%s\n' "$username"
+  done < "$passwd_file"
+}
+
+validate_existing_normal_user() {
+  local expected=$1 candidate
+  while IFS= read -r candidate; do
+    [[ $candidate == "$expected" ]] && return 0
+  done < <(normal_login_users)
+  return 1
+}
+
 validate_target_user() {
   local username=$1 uid uid_min uid_max
   validate_username "$username" || return 1
@@ -52,8 +76,89 @@ prompt_identity() {
   done
 }
 
+select_installed_identity() {
+  local hostname_file
+  local users=()
+
+  hostname_file=$(system_path /etc/hostname)
+  [[ -r $hostname_file ]] || { die 'The installed system has no readable /etc/hostname.'; return 1; }
+  HOSTNAME_VALUE=$(<"$hostname_file")
+  if ! validate_hostname "$HOSTNAME_VALUE"; then
+    die "The installed hostname is invalid: '$HOSTNAME_VALUE'. Return to Archinstall and configure a valid hostname."
+    return 1
+  fi
+
+  if [[ -n $USERNAME ]]; then
+    if ! validate_existing_normal_user "$USERNAME"; then
+      die "User '$USERNAME' is not an existing normal login user in the installed system."
+      return 1
+    fi
+  else
+    mapfile -t users < <(normal_login_users)
+    case ${#users[@]} in
+      0)
+        die 'No normal login user found in the installed system. Create one in Archinstall before provisioning.'
+        return 1
+        ;;
+      1) USERNAME=${users[0]} ;;
+      *)
+        die "Multiple normal login users found (${users[*]}). Rerun with --install-mode --user USER."
+        return 1
+        ;;
+    esac
+  fi
+
+  log_info "Using installed user $USERNAME and hostname $HOSTNAME_VALUE."
+}
+
+ensure_wheel_sudo_policy() {
+  local sudoers_path sudoers_tmp
+  sudoers_path=$(system_path /etc/sudoers.d/10-wheel)
+  if [[ -f "$sudoers_path" ]] \
+      && [[ $(<"$sudoers_path") == '%wheel ALL=(ALL:ALL) ALL' ]] \
+      && [[ $(stat -c '%a' "$sudoers_path" 2>/dev/null || true) == 440 ]]; then
+    log_skip 'wheel sudo policy already configured'
+    return 0
+  fi
+
+  sudoers_tmp=$(mktemp)
+  printf '%%wheel ALL=(ALL:ALL) ALL\n' >"$sudoers_tmp"
+  if command -v visudo >/dev/null 2>&1; then
+    if ! visudo -cf "$sudoers_tmp" >/dev/null; then
+      rm -f "$sudoers_tmp"
+      die 'Generated sudoers policy failed validation.'
+      return 1
+    fi
+  elif (( CHECK_MODE )); then
+    log_info 'sudo is not installed yet; sudoers validation will run after the planned sudo installation.'
+  else
+    rm -f "$sudoers_tmp"
+    die 'visudo is unavailable after installing sudo.'
+    return 1
+  fi
+  run_mutation 'Install wheel sudo policy' install -Dm0440 "$sudoers_tmp" "$sudoers_path"
+  rm -f "$sudoers_tmp"
+}
+
 configure_identity() {
-  local created_user=0 user_exists=0 groups='' sudoers_path sudoers_tmp current_hostname=''
+  local created_user=0 user_exists=0 groups='' current_hostname=''
+
+  if (( INSTALL_MODE )); then
+    if ! validate_existing_normal_user "$USERNAME"; then
+      die "Refusing install-mode user '$USERNAME': it is not an existing normal login account."
+      return 1
+    fi
+
+    ensure_packages sudo
+    groups=$(id -nG "$USERNAME" 2>/dev/null || true)
+    if [[ " $groups " != *' wheel '* ]]; then
+      run_mutation "Add $USERNAME to wheel" usermod -aG wheel "$USERNAME"
+    else
+      log_skip "$USERNAME already belongs to wheel"
+    fi
+    ensure_wheel_sudo_policy
+    return
+  fi
 
   if ! validate_target_user "$USERNAME"; then
     die "Refusing workstation user '$USERNAME': choose a normal login account, not root or a system account."
@@ -75,30 +180,7 @@ configure_identity() {
     created_user=1
   fi
 
-  sudoers_path=$(system_path /etc/sudoers.d/10-wheel)
-  if [[ -f "$sudoers_path" ]] \
-      && [[ $(<"$sudoers_path") == '%wheel ALL=(ALL:ALL) ALL' ]] \
-      && [[ $(stat -c '%a' "$sudoers_path" 2>/dev/null || true) == 440 ]]; then
-    log_skip 'wheel sudo policy already configured'
-  else
-    sudoers_tmp=$(mktemp)
-    printf '%%wheel ALL=(ALL:ALL) ALL\n' >"$sudoers_tmp"
-    if command -v visudo >/dev/null 2>&1; then
-      if ! visudo -cf "$sudoers_tmp" >/dev/null; then
-        rm -f "$sudoers_tmp"
-        die 'Generated sudoers policy failed validation.'
-        return 1
-      fi
-    elif (( CHECK_MODE )); then
-      log_info 'sudo is not installed yet; sudoers validation will run after the planned sudo installation.'
-    else
-      rm -f "$sudoers_tmp"
-      die 'visudo is unavailable after installing sudo.'
-      return 1
-    fi
-    run_mutation 'Install wheel sudo policy' install -Dm0440 "$sudoers_tmp" "$sudoers_path"
-    rm -f "$sudoers_tmp"
-  fi
+  ensure_wheel_sudo_policy
 
   current_hostname=$(hostnamectl --static 2>/dev/null || true)
   if [[ $current_hostname == "$HOSTNAME_VALUE" ]]; then

@@ -3,6 +3,7 @@ set -euo pipefail
 source tests/testlib.sh
 
 CALLS=''
+INSTALL_MODE=0
 ensure_packages() { CALLS+="packages:$*"$'\n'; }
 ensure_service_enabled() { CALLS+="enable:$1"$'\n'; }
 ensure_service_started() { CALLS+="start:$1"$'\n'; }
@@ -11,11 +12,29 @@ log_info() { CALLS+="info:$*"$'\n'; }
 die() { CALLS+="die:$*"$'\n'; return 1; }
 
 NETWORK_CONFLICT=''
+NETWORK_ENABLED_CONFLICT=''
+NETWORK_ACTIVE_CONFLICT=''
+NETWORK_SYSTEMCTL_CALLS_FILE=$(mktemp)
+trap 'rm -f "$NETWORK_SYSTEMCTL_CALLS_FILE"' EXIT
 # Consumed by the sourced network module.
 # shellcheck disable=SC2034
 NETWORK_INTERFACES=(enp3s0 wlan0)
 systemctl() {
-  local action=${1:-} unit=${3:-${2:-}}
+  local action unit
+  printf '%s\n' "$*" >> "$NETWORK_SYSTEMCTL_CALLS_FILE"
+  if [[ ${1:-} == --root=/ ]]; then
+    action=${2:-}
+    unit=${4:-}
+  else
+    action=${1:-}
+    unit=${3:-${2:-}}
+  fi
+  if [[ $action == is-enabled && -n ${NETWORK_ENABLED_CONFLICT:-} && $unit == "$NETWORK_ENABLED_CONFLICT" ]]; then
+    return 0
+  fi
+  if [[ $action == is-active && -n ${NETWORK_ACTIVE_CONFLICT:-} && $unit == "$NETWORK_ACTIVE_CONFLICT" ]]; then
+    return 0
+  fi
   if [[ ($action == is-enabled || $action == is-active) && -n ${NETWORK_CONFLICT:-} && $unit == "$NETWORK_CONFLICT" ]]; then
     return 0
   fi
@@ -45,6 +64,26 @@ CALLS=''; NETWORK_CONFLICT=iwd.service
 if configure_network; then echo 'FAIL: standalone iwd accepted without NetworkManager' >&2; exit 1; fi
 assert_contains "$CALLS" 'die:Conflicting network manager iwd.service' 'standalone iwd conflict is detected'
 NETWORK_CONFLICT=''
+
+CALLS=''; : > "$NETWORK_SYSTEMCTL_CALLS_FILE"; INSTALL_MODE=1
+NETWORK_ACTIVE_CONFLICT=systemd-networkd.service
+NETWORK_ENABLED_CONFLICT=''
+if ! configure_network; then
+  echo 'FAIL: install mode treated live-only network activity as a target conflict' >&2
+  exit 1
+fi
+assert_eq $'packages:networkmanager\nenable:NetworkManager.service' "${CALLS%$'\n'}" 'install mode ignores live-only network activity'
+network_systemctl_calls=$(<"$NETWORK_SYSTEMCTL_CALLS_FILE")
+assert_contains "$network_systemctl_calls" '--root=/ is-enabled --quiet systemd-networkd.service' 'install mode checks target enablement'
+[[ $network_systemctl_calls != *'is-active'* ]] || { echo 'FAIL: install mode queried live network activity' >&2; exit 1; }
+
+CALLS=''; : > "$NETWORK_SYSTEMCTL_CALLS_FILE"
+NETWORK_ACTIVE_CONFLICT=''
+NETWORK_ENABLED_CONFLICT=dhcpcd.service
+if configure_network; then echo 'FAIL: target-enabled network manager accepted in install mode' >&2; exit 1; fi
+assert_contains "$CALLS" 'die:Conflicting network manager dhcpcd.service' 'install mode rejects target-enabled network conflict'
+NETWORK_ENABLED_CONFLICT=''
+INSTALL_MODE=0
 
 CALLS=''; configure_audio
 assert_eq 'packages:pipewire pipewire-alsa pipewire-pulse wireplumber' "${CALLS%$'\n'}" 'audio module contract'
@@ -93,8 +132,10 @@ assert_contains "$CALLS" 'skip:Laptop-specific configuration not required' 'desk
 run_as_user_mutation() {
   local user=$1 label=$2
   shift 2
+  USER_CALL_COUNT=$((USER_CALL_COUNT + 1))
   CALLS+="user:$user:$label:$*"$'\n'
 }
+USER_CALL_COUNT=0
 AUR_FIXTURE=()
 load_aur_packages() { ((${#AUR_FIXTURE[@]})) && printf '%s\n' "${AUR_FIXTURE[@]}"; }
 USERNAME=pavel
@@ -102,7 +143,7 @@ source modules/aur.sh
 
 orig_path=$PATH
 aur_tmp=$(mktemp -d)
-trap 'rm -rf "$aur_tmp"' EXIT
+trap 'rm -f "$NETWORK_SYSTEMCTL_CALLS_FILE"; rm -rf "$aur_tmp"' EXIT
 
 mkdir -p "$aur_tmp/no-paru-bin"
 ln -s "$(command -v cat)" "$aur_tmp/no-paru-bin/cat"
@@ -127,3 +168,18 @@ assert_contains "$CALLS" 'user:pavel:Install AUR packages: foo bar:paru -S --nee
 CALLS=''; AUR_FIXTURE=()
 install_aur_packages
 [[ "$CALLS" != *'user:'* ]] || { echo 'FAIL: empty AUR list invoked user mutation' >&2; exit 1; }
+
+CALLS=''; USER_CALL_COUNT=0; AUR_FIXTURE=(foo bar); INSTALL_MODE=1
+defer_aur_packages_install_mode
+assert_eq 0 "$USER_CALL_COUNT" 'install mode never opens an interactive target-user AUR session'
+assert_contains "$CALLS" 'info:AUR packages deferred until first boot: foo bar' 'install mode reports deferred AUR packages explicitly'
+[[ "$CALLS" != *'packages:base-devel'* ]] || { echo 'FAIL: install mode installed AUR build prerequisites despite deferral' >&2; exit 1; }
+[[ "$CALLS" != *'sudo -v'* && "$CALLS" != *'makepkg'* && "$CALLS" != *'paru -S'* ]] || {
+  echo 'FAIL: install mode retained interactive AUR authentication/build work' >&2
+  exit 1
+}
+
+CALLS=''; USER_CALL_COUNT=0; AUR_FIXTURE=(); INSTALL_MODE=1
+defer_aur_packages_install_mode
+assert_eq 0 "$USER_CALL_COUNT" 'empty install-mode AUR set never opens a user session'
+assert_contains "$CALLS" 'skip:No AUR packages declared' 'empty install-mode AUR set reports nothing to defer'

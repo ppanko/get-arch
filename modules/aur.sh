@@ -32,3 +32,14 @@ install_aur_packages() {
   run_as_user_mutation "$USERNAME" "Install AUR packages: ${packages[*]}" \
     paru -S --needed --noconfirm -- "${packages[@]}"
 }
+
+defer_aur_packages_install_mode() {
+  local packages=()
+  mapfile -t packages < <(load_aur_packages)
+  if ((${#packages[@]} == 0)); then
+    log_skip 'No AUR packages declared'
+    return 0
+  fi
+
+  log_info "AUR packages deferred until first boot: ${packages[*]}"
+}

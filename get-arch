@@ -16,20 +16,35 @@ source "$REPO_ROOT/modules/aur.sh"
 
 usage() {
   cat <<'EOF_USAGE'
-Usage: ./get-arch [--check] [--verbose] [--help]
+Usage: ./get-arch [--install-mode [--user USER]] [--check] [--verbose] [--help]
 EOF_USAGE
 }
 
 parse_args() {
+  local user_set=0
   while (($#)); do
     case "$1" in
       --check) CHECK_MODE=1 ;;
       --verbose) VERBOSE=1 ;;
+      --install-mode) INSTALL_MODE=1 ;;
+      --user)
+        if (($# < 2)) || [[ $2 == -* ]]; then
+          printf '%s\n' '--user requires a username' >&2
+          return 2
+        fi
+        USERNAME=$2
+        user_set=1
+        shift
+        ;;
       --help) usage; return 10 ;;
       *) printf 'Unknown option: %s\n' "$1" >&2; return 2 ;;
     esac
     shift
   done
+  if (( user_set && ! INSTALL_MODE )); then
+    printf '%s\n' '--user requires --install-mode' >&2
+    return 2
+  fi
 }
 
 preflight() {
@@ -58,8 +73,12 @@ run_workstation() {
   init_logging
   detect_system
   print_system_summary
-  prompt_identity
-  upgrade_system
+  if (( INSTALL_MODE )); then
+    select_installed_identity
+  else
+    prompt_identity
+    upgrade_system
+  fi
   configure_identity
   configure_network
   configure_audio
@@ -68,8 +87,12 @@ run_workstation() {
   configure_laptop
   configure_ssh
   install_declared_official_packages
-  ensure_aur_helper
-  install_aur_packages
+  if (( INSTALL_MODE )); then
+    defer_aur_packages_install_mode
+  else
+    ensure_aur_helper
+    install_aur_packages
+  fi
   log_ok 'Workstation configuration complete; reboot is recommended.'
 }
 
