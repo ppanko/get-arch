@@ -1,6 +1,6 @@
 # get-arch
 
-`get-arch` is a small Bash post-install configurator for an Arch Linux GNOME workstation. It is intentionally the second stage of installation: `archinstall` owns disks, filesystems, encryption, the bootloader, and the base system; `get-arch` owns workstation configuration after the installed system can boot and reach the network.
+`get-arch` is a small Bash configurator for an Arch Linux GNOME workstation. It is intentionally the second stage of installation: `archinstall` owns disks, filesystems, encryption, the bootloader, and the base system; `get-arch` owns workstation configuration from inside the newly installed target and remains rerunnable after first boot.
 
 ## 1. Install Arch
 
@@ -10,7 +10,9 @@ From the Arch ISO, start the guided installer with the repository's reusable sta
 archinstall --config-url https://raw.githubusercontent.com/ppanko/get-arch/master/archinstall/get-arch.json
 ```
 
-The preset supplies only portable workstation policy: the **Minimal** profile, the `linux` kernel, **NetworkManager**, NTP, and Git. It deliberately does not specify disks, partitioning, encryption, bootloader, credentials, hostname, locale, or timezone. Complete those machine-specific choices in the guided installer, then install and reboot.
+The preset supplies only portable workstation policy: the **Minimal** profile, the `linux` kernel, **NetworkManager**, NTP, and Git. It deliberately does not specify disks, partitioning, encryption, bootloader, credentials, hostname, locale, or timezone. Complete those machine-specific choices in the guided installer. Archinstall then installs the base system and runs the pinned `get-arch --install-mode` revision inside the target before the first reboot.
+
+The intended flow is: Arch USB/ISO → guided Archinstall → base system → pinned `get-arch --install-mode` provisioning → one reboot → GNOME workstation.
 
 The same preset can be used from a local clone with:
 
@@ -20,25 +22,12 @@ archinstall --config archinstall/get-arch.json
 
 Do not replace NetworkManager with another installed-system network manager. `get-arch` deliberately refuses to enable NetworkManager while another manager such as `systemd-networkd`, `dhcpcd` (including per-interface `dhcpcd@...` units), standalone IWD, or ConnMan is active or enabled; it will not attempt a live network-manager handoff underneath the connection being used for installation.
 
-After reboot, log in as root. Git is included by the stage-1 preset, so retrieve the repository:
-
-```bash
-git clone https://github.com/ppanko/get-arch.git
-cd get-arch
-```
-
-If Git is unavailable for any reason, install it first with:
-
-```bash
-pacman -Syu --needed git
-```
-
 ## 2. Inspect the plan
 
-Run the non-destructive check first:
+For later maintenance, run the non-destructive check first from the repository retained at `/opt/get-arch`:
 
 ```bash
-./get-arch --check
+/opt/get-arch/get-arch --check
 ```
 
 The script prompts for only two installation-specific values:
@@ -51,7 +40,7 @@ Hardware facts such as laptop/desktop status, GPU vendors, battery presence, boo
 ## 3. Configure the workstation
 
 ```bash
-./get-arch
+/opt/get-arch/get-arch
 ```
 
 The default policy configures a complete GNOME workstation, including GNOME/GDM, NetworkManager, PipeWire/WirePlumber, detected graphics support, laptop power support when applicable, SSH, the declared official package groups, and declared AUR packages through `paru`.
@@ -72,12 +61,12 @@ A reboot is recommended after a successful first run.
 
 ## Archinstall target provisioning
 
-`get-arch` also has an installation mode intended for an Archinstall
-`custom_commands` entry after the repository has been made available inside
-the installed target:
+The reusable preset contains an Archinstall `custom_commands` entry that clones
+the repository to `/opt/get-arch`, checks out the immutable installation-mode
+revision, and invokes:
 
 ```bash
-./get-arch --install-mode
+/opt/get-arch/get-arch --install-mode
 ```
 
 Archinstall already runs custom commands inside the target system, so this
@@ -105,12 +94,11 @@ behavior.
 For a non-destructive inspection from inside the target chroot, add `--check`:
 
 ```bash
-./get-arch --install-mode --check
+/opt/get-arch/get-arch --install-mode --check
 ```
 
-The reusable stage-1 preset currently remains intentionally partial and does
-not yet contain the custom-command hook. That hook will be added separately
-once an immutable merged revision containing installation mode is available.
+The custom command is fail-fast. A clone, checkout, or provisioning failure is
+reported as an Archinstall failure rather than being ignored.
 
 ## Package maintenance
 
