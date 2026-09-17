@@ -48,3 +48,44 @@ for forbidden in (
 ):
     assert forbidden not in text, forbidden
 PY
+
+builder=scripts/build-iso
+
+if [[ ! -f $builder ]]; then
+  printf 'FAIL: missing Archiso build script: %s\n' "$builder" >&2
+  exit 1
+fi
+
+python - "$builder" <<'PY'
+from pathlib import Path
+import sys
+
+path = Path(sys.argv[1])
+text = path.read_text(encoding='utf-8')
+
+assert text.startswith('#!/usr/bin/env bash\nset -euo pipefail\n'), text[:80]
+assert '/usr/share/archiso/configs/releng' in text
+assert 'archinstall/get-arch.json' in text
+assert 'archiso/get-arch-install' in text
+assert 'pacman -Q archiso' in text
+assert "grep -Fxq 'archinstall'" in text
+assert "grep -Fxc '~/.automated_script.sh'" in text
+assert 'bash /root/get-arch-install' in text
+assert 'mkarchiso -v -w "$work_dir" -o "$build_output" "$profile_dir"' in text
+assert 'trap cleanup EXIT HUP INT TERM' in text
+
+copy_profile = 'cp -a -- "$RELENG_DIR" "$profile_dir"'
+copy_preset = 'cp -- "$PRESET" "$profile_dir/airootfs/root/get-arch.json"'
+patch_zlogin = "printf '\\nbash /root/get-arch-install\\n' >> \"$zlogin\""
+assert text.index(copy_profile) < text.index(copy_preset) < text.index(patch_zlogin)
+
+for forbidden in (
+    'dd if=',
+    'wipefs',
+    'mkfs',
+    '/dev/sd',
+    '/dev/nvme',
+    'sudo ',
+):
+    assert forbidden not in text, forbidden
+PY
