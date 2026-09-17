@@ -23,9 +23,9 @@ jobs:
       - name: Install test dependencies
         run: pacman -Syu --noconfirm shellcheck python
       - name: Check Bash syntax
-        run: bash -n get-arch lib/*.sh modules/*.sh tests/*.sh tests/run
+        run: bash -n get-arch lib/*.sh modules/*.sh tests/*.sh tests/run scripts/build-iso archiso/get-arch-install
       - name: Run ShellCheck
-        run: shellcheck get-arch lib/*.sh modules/*.sh tests/*.sh tests/run
+        run: shellcheck get-arch lib/*.sh modules/*.sh tests/*.sh tests/run scripts/build-iso archiso/get-arch-install
       - name: Run tests
         run: ./tests/run
       - name: Exercise full check mode

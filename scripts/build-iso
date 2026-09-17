@@ -1,0 +1,70 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+repo_root=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
+readonly repo_root
+readonly RELENG_DIR=/usr/share/archiso/configs/releng
+readonly PRESET="$repo_root/archinstall/get-arch.json"
+readonly LAUNCHER="$repo_root/archiso/get-arch-install"
+output_dir=${1:-"$repo_root/out"}
+
+fail() {
+  printf 'get-arch ISO build: %s\n' "$*" >&2
+  exit 1
+}
+
+for command in mkarchiso pacman; do
+  command -v "$command" >/dev/null 2>&1 || fail "missing required command: $command"
+done
+
+[[ -d $RELENG_DIR ]] || fail "missing official releng profile: $RELENG_DIR"
+[[ -f $PRESET ]] || fail "missing canonical preset: $PRESET"
+[[ -f $LAUNCHER ]] || fail "missing live launcher: $LAUNCHER"
+
+archiso_version=$(pacman -Q archiso 2>/dev/null) || fail 'archiso package is not installed'
+printf 'get-arch ISO build: using %s\n' "$archiso_version"
+
+tmp_root=$(mktemp -d "${TMPDIR:-/tmp}/get-arch-iso.XXXXXX")
+readonly tmp_root
+profile_dir="$tmp_root/profile"
+work_dir="$tmp_root/work"
+build_output="$tmp_root/output"
+
+cleanup() {
+  if (( EUID == 0 )); then
+    rm -rf -- "$tmp_root"
+  else
+    unshare --map-auto --map-root-user -- rm -rf -- "$tmp_root"
+  fi
+}
+trap cleanup EXIT HUP INT TERM
+
+cp -a -- "$RELENG_DIR" "$profile_dir"
+
+packages="$profile_dir/packages.x86_64"
+[[ -f $packages ]] || fail "copied releng profile has no packages.x86_64"
+grep -Fxq 'archinstall' "$packages" || fail 'copied releng profile no longer includes archinstall'
+
+mkdir -p "$profile_dir/airootfs/root"
+cp -- "$PRESET" "$profile_dir/airootfs/root/get-arch.json"
+cp -- "$LAUNCHER" "$profile_dir/airootfs/root/get-arch-install"
+
+zlogin="$profile_dir/airootfs/root/.zlogin"
+[[ -f $zlogin ]] || fail 'copied releng profile has no root .zlogin'
+# shellcheck disable=SC2088 # Match the literal hook text in the upstream file.
+startup_count=$(grep -Fxc '~/.automated_script.sh' "$zlogin" || true)
+[[ $startup_count -eq 1 ]] || fail 'unexpected releng .zlogin startup hook; refusing to patch'
+if grep -Fq 'get-arch-install' "$zlogin"; then
+  fail 'copied releng .zlogin already references get-arch-install'
+fi
+printf '\nbash /root/get-arch-install\n' >> "$zlogin"
+
+mkdir -p "$work_dir" "$build_output" "$output_dir"
+mkarchiso -v -w "$work_dir" -o "$build_output" "$profile_dir"
+
+mapfile -t images < <(find "$build_output" -maxdepth 1 -type f -name '*.iso' -print)
+[[ ${#images[@]} -eq 1 ]] || fail "expected exactly one ISO, found ${#images[@]}"
+
+final_iso="$output_dir/$(basename "${images[0]}")"
+mv -- "${images[0]}" "$final_iso"
+printf 'get-arch ISO build: %s\n' "$final_iso"

@@ -1,0 +1,58 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+readonly SENTINEL=/run/get-arch-install.started
+readonly PRESET=/root/get-arch.json
+
+manual_retry() {
+  printf '\nConnect the live environment if needed. For Wi-Fi, use: iwctl\n'
+  printf 'Then start the installer manually with:\n'
+  printf '  archinstall --config /root/get-arch.json\n'
+}
+
+if [[ $(tty) != /dev/tty1 ]]; then
+  exit 0
+fi
+
+if [[ -e $SENTINEL ]]; then
+  exit 0
+fi
+
+: > "$SENTINEL"
+
+if ! command -v archinstall >/dev/null 2>&1; then
+  printf 'get-arch installer: archinstall is unavailable in this live environment.\n' >&2
+  manual_retry
+  exit 0
+fi
+
+if ! command -v curl >/dev/null 2>&1; then
+  printf 'get-arch installer: curl is unavailable; automatic network readiness cannot be checked.\n' >&2
+  manual_retry
+  exit 0
+fi
+
+online=false
+# shellcheck disable=SC2034 # Fixed attempt count keeps the readiness wait bounded.
+for attempt in 1 2 3 4 5; do
+  if curl --silent --fail --head --connect-timeout 2 --max-time 3 https://archlinux.org/ >/dev/null; then
+    online=true
+    break
+  fi
+  sleep 1
+done
+
+if [[ $online != true ]]; then
+  printf 'get-arch installer: network connectivity is not ready; automatic launch skipped.\n'
+  manual_retry
+  exit 0
+fi
+
+printf 'get-arch installer: starting guided Archinstall.\n'
+if archinstall --config "$PRESET"; then
+  printf 'get-arch installer: Archinstall exited successfully.\n'
+else
+  status=$?
+  printf 'get-arch installer: Archinstall exited with status %d.\n' "$status" >&2
+  manual_retry
+fi

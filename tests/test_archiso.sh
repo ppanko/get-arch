@@ -1,0 +1,92 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+cd "$(dirname "$0")/.."
+
+launcher=archiso/get-arch-install
+
+if [[ ! -f $launcher ]]; then
+  printf 'FAIL: missing Archiso launcher: %s\n' "$launcher" >&2
+  exit 1
+fi
+
+python - "$launcher" <<'PY'
+from pathlib import Path
+import sys
+
+path = Path(sys.argv[1])
+text = path.read_text(encoding='utf-8')
+
+assert text.startswith('#!/usr/bin/env bash\nset -euo pipefail\n'), text[:80]
+assert '/dev/tty1' in text
+assert '/run/get-arch-install.started' in text
+assert '/root/get-arch.json' in text
+assert 'archinstall --config "$PRESET"' in text
+assert 'iwctl' in text
+assert 'curl ' in text
+assert 'for attempt in 1 2 3 4 5' in text
+
+sentinel = ': > "$SENTINEL"'
+probe = 'for attempt in 1 2 3 4 5'
+install = 'archinstall --config "$PRESET"'
+assert text.index(sentinel) < text.index(probe) < text.index(install)
+
+manual = 'archinstall --config /root/get-arch.json'
+assert text.count(manual) >= 1
+
+for forbidden in (
+    'reboot',
+    'poweroff',
+    'shutdown',
+    'mkfs',
+    'fdisk',
+    'parted',
+    'wipefs',
+    'dd if=',
+    'sudo ',
+    'wpa_passphrase',
+):
+    assert forbidden not in text, forbidden
+PY
+
+builder=scripts/build-iso
+
+if [[ ! -f $builder ]]; then
+  printf 'FAIL: missing Archiso build script: %s\n' "$builder" >&2
+  exit 1
+fi
+
+python - "$builder" <<'PY'
+from pathlib import Path
+import sys
+
+path = Path(sys.argv[1])
+text = path.read_text(encoding='utf-8')
+
+assert text.startswith('#!/usr/bin/env bash\nset -euo pipefail\n'), text[:80]
+assert '/usr/share/archiso/configs/releng' in text
+assert 'archinstall/get-arch.json' in text
+assert 'archiso/get-arch-install' in text
+assert 'pacman -Q archiso' in text
+assert "grep -Fxq 'archinstall'" in text
+assert "grep -Fxc '~/.automated_script.sh'" in text
+assert 'bash /root/get-arch-install' in text
+assert 'mkarchiso -v -w "$work_dir" -o "$build_output" "$profile_dir"' in text
+assert 'trap cleanup EXIT HUP INT TERM' in text
+assert 'unshare --map-auto --map-root-user -- rm -rf -- "$tmp_root"' in text
+
+copy_profile = 'cp -a -- "$RELENG_DIR" "$profile_dir"'
+copy_preset = 'cp -- "$PRESET" "$profile_dir/airootfs/root/get-arch.json"'
+patch_zlogin = "printf '\\nbash /root/get-arch-install\\n' >> \"$zlogin\""
+assert text.index(copy_profile) < text.index(copy_preset) < text.index(patch_zlogin)
+
+for forbidden in (
+    'dd if=',
+    'wipefs',
+    'mkfs',
+    '/dev/sd',
+    '/dev/nvme',
+    'sudo ',
+):
+    assert forbidden not in text, forbidden
+PY
