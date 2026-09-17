@@ -65,5 +65,10 @@ run_as_user_mutation() {
     printf '\n'
     return 0
   fi
-  run_mutation "$label" runuser --pty -u "$user" -- "$@"
+  if runuser --pty -u "$user" -- "$@" 2>&1 | tee -a "$LOG_FILE"; then
+    log_ok "$label"
+    return 0
+  fi
+  log_fail "$label"
+  return 1
 }
