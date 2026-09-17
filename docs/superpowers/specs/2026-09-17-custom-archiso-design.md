@@ -48,7 +48,7 @@ The canonical Archinstall preset remains `archinstall/get-arch.json`. The ISO bu
 
 ## Build script
 
-`scripts/build-iso` is a root-required Arch-host build command.
+`scripts/build-iso` is an Arch-host build command. Current Archiso supports unprivileged builds through user namespaces, so the script must not require root solely to run `mkarchiso`; if the host cannot support an unprivileged Archiso build, `mkarchiso` should fail normally rather than the wrapper forcing privilege escalation.
 
 It will:
 
@@ -66,7 +66,7 @@ It will:
 12. invoke `mkarchiso` using explicit work and output directories;
 13. print the resulting ISO path.
 
-The script must never mutate the installed Archiso profile, choose a USB device, or flash media.
+The script must never mutate the installed Archiso profile, choose a USB device, flash media, or invoke privilege escalation such as `sudo` on its own.
 
 ## Live launcher
 
@@ -143,7 +143,7 @@ The preset's provisioning checkout is itself retry-safe: `/opt/get-arch` is clea
 - the build script validates the upstream `.zlogin` hook before modifying the copied profile;
 - the build script reports the Archiso version used;
 - the build script installs cleanup handling for disposable build state;
-- the build script does not contain USB flashing commands;
+- the build script does not contain USB flashing or privilege-escalation commands;
 - the existing Archinstall preset safety tests continue to pass.
 
 CI continues to run Bash syntax checks, ShellCheck, the full existing test suite, and `./get-arch --check`.
@@ -177,5 +177,6 @@ This change does not:
 - install AUR packages inside Archinstall;
 - vendor the full upstream `releng` profile;
 - add automatic USB flashing;
+- require root for the ISO build when current Archiso can build unprivileged;
 - claim bit-for-bit reproducibility across Archiso/package-repository changes;
 - remove the normal standalone/rerunnable `get-arch` workflow.
