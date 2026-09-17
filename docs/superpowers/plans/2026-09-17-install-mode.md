@@ -4,7 +4,7 @@
 
 **Goal:** Add a tested `get-arch --install-mode` that provisions Archinstall's newly installed target without changing machine-specific installation choices.
 
-**Architecture:** A global mode flag selects a narrow alternate orchestration path while retaining the existing modules and normal-mode behavior. Install mode discovers existing identity from target files, uses offline systemd enablement, and combines AUR bootstrap and installation into one unprivileged user session with interactive sudo authentication.
+**Architecture:** A global mode flag selects a narrow alternate orchestration path while retaining the existing modules and normal-mode behavior. Install mode discovers existing identity from target files, uses offline systemd enablement, remains noninteractive under Archinstall `custom_commands`, and explicitly defers AUR work until a real interactive first-boot session is available.
 
 **Tech Stack:** Bash, Arch Linux pacman/systemd tools, shell-based regression tests, ShellCheck
 
@@ -17,6 +17,7 @@
 - Do not create users, set passwords, or change hostname in install mode.
 - Do not start services in install mode.
 - Do not introduce passwordless or temporary sudo policy.
+- Do not require interactive authentication from Archinstall `custom_commands`.
 - Preserve normal mode as closely as possible.
 
 ---
@@ -37,7 +38,7 @@
 - [ ] Run `bash tests/test_cli.sh` and confirm failure because the options do not exist.
 - [ ] Implement minimal parsing and validation.
 - [ ] Run `bash tests/test_cli.sh` and confirm success.
-- [ ] Add orchestration tests proving normal mode retains prompt/upgrade behavior while install mode selects installed identity, skips upgrade, and uses the combined AUR entry point.
+- [ ] Add orchestration tests proving normal mode retains prompt/upgrade behavior while install mode selects installed identity, skips upgrade, and defers AUR work.
 - [ ] Run `bash tests/test_orchestration.sh` and confirm failure on the missing install branch.
 - [ ] Implement the orchestration split and confirm the test succeeds.
 - [ ] Commit the CLI/orchestration increment.
@@ -77,21 +78,23 @@
 - [ ] Run the focused tests and confirm success.
 - [ ] Commit the service/network increment.
 
-### Task 4: Single-session AUR provisioning
+### Task 4: Noninteractive AUR deferral
 
 **Files:**
 - Modify: `tests/test_modules.sh`
+- Modify: `tests/test_orchestration.sh`
 - Modify: `modules/aur.sh`
+- Modify: `get-arch`
 
 **Interfaces:**
-- Produces: `install_aur_packages_install_mode`, which installs official prerequisites as root and performs `sudo -v`, unprivileged paru bootstrap, and declared AUR installation in one `run_as_user_mutation` call.
-- Consumes: `USERNAME`, `load_aur_packages`, `ensure_packages`, and `run_as_user_mutation`.
+- Produces: `defer_aur_packages_install_mode`, which reports the declared AUR package set without opening a user/PTY session.
+- Consumes: `load_aur_packages` and logging helpers.
 
-- [ ] Add a test proving one PTY user session contains `sudo -v`, paru bootstrap, and declared package installation, with official prerequisites outside that session.
-- [ ] Run `bash tests/test_modules.sh` and confirm failure because the combined entry point is missing.
-- [ ] Implement the minimal combined session while leaving normal-mode AUR functions unchanged.
-- [ ] Run `bash tests/test_modules.sh` and confirm success.
-- [ ] Commit the AUR increment.
+- [ ] Add a regression test proving install mode opens no target-user AUR session and invokes no `sudo`, `makepkg`, or `paru` path.
+- [ ] Run the focused tests and confirm failure because the deferral entry point is missing.
+- [ ] Implement explicit AUR deferral while leaving normal-mode AUR functions unchanged.
+- [ ] Run the focused tests and confirm success.
+- [ ] Commit the AUR fix.
 
 ### Task 5: Documentation and complete verification
 
@@ -104,9 +107,10 @@
 - Consumes: all preceding tasks.
 
 - [ ] Document install-mode boundaries and the expected Archinstall custom-command context without adding ISO implementation.
+- [ ] Document why AUR work is deferred until an interactive first-boot path exists.
 - [ ] Run `bash -n get-arch lib/*.sh modules/*.sh tests/*.sh tests/run`.
 - [ ] Run `shellcheck get-arch lib/*.sh modules/*.sh tests/*.sh tests/run`.
 - [ ] Run `./tests/run`.
-- [ ] Run a non-destructive top-level `./get-arch --check` regression with fixture input.
+- [ ] Run non-destructive top-level normal and install-mode check regressions.
 - [ ] Review the diff against every specification item and fix any gap through a failing regression test first.
-- [ ] Commit documentation/final fixes, push the branch, and open a PR against `master` without merging it.
+- [ ] Push the branch and keep the PR open for review without merging it.
