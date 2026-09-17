@@ -78,4 +78,8 @@ configure_graphics() {
   fi
 
   ensure_packages "${packages[@]}"
+
+  if ((${#GPU_VENDORS[@]} > 1)); then
+    ensure_service_enabled switcheroo-control.service
+  fi
 }
