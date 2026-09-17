@@ -95,3 +95,23 @@ calls=$(cat "$CALLS")
 [[ "$calls" != *'usermod '* ]] || { echo 'FAIL: wheel membership changed unnecessarily' >&2; exit 1; }
 [[ "$calls" != *'hostnamectl set-hostname'* ]] || { echo 'FAIL: unchanged hostname reset' >&2; exit 1; }
 [[ "$calls" != *'passwd '* ]] || { echo 'FAIL: existing user password prompted' >&2; exit 1; }
+
+# Check mode must work on a minimal system where sudo/visudo is not installed yet.
+rm -f "$GET_ARCH_ROOT/etc/sudoers.d/10-wheel"
+mkdir -p "$tmp/no-visudo-bin"
+ln -s "$(command -v mktemp)" "$tmp/no-visudo-bin/mktemp"
+ln -s "$(command -v rm)" "$tmp/no-visudo-bin/rm"
+cat > "$tmp/no-visudo-bin/id" <<'SH'
+#!/usr/bin/env bash
+exit 1
+SH
+cat > "$tmp/no-visudo-bin/hostnamectl" <<'SH'
+#!/usr/bin/env bash
+if [[ ${1:-} == --static ]]; then printf 'oldhost\n'; else exit 99; fi
+SH
+chmod +x "$tmp/no-visudo-bin/id" "$tmp/no-visudo-bin/hostnamectl"
+: > "$CALLS"
+CHECK_MODE=1
+output=$(PATH="$tmp/no-visudo-bin" configure_identity 2>&1)
+assert_contains "$output" 'sudo is not installed yet' 'check mode defers sudoers validation until sudo is installed'
+assert_eq '' "$(cat "$CALLS")" 'check mode without visudo makes no mutations'

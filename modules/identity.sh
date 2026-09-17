@@ -48,9 +48,17 @@ configure_identity() {
   else
     sudoers_tmp=$(mktemp)
     printf '%%wheel ALL=(ALL:ALL) ALL\n' >"$sudoers_tmp"
-    if ! visudo -cf "$sudoers_tmp" >/dev/null; then
+    if command -v visudo >/dev/null 2>&1; then
+      if ! visudo -cf "$sudoers_tmp" >/dev/null; then
+        rm -f "$sudoers_tmp"
+        die 'Generated sudoers policy failed validation.'
+        return 1
+      fi
+    elif (( CHECK_MODE )); then
+      log_info 'sudo is not installed yet; sudoers validation will run after the planned sudo installation.'
+    else
       rm -f "$sudoers_tmp"
-      die 'Generated sudoers policy failed validation.'
+      die 'visudo is unavailable after installing sudo.'
       return 1
     fi
     run_mutation 'Install wheel sudo policy' install -Dm0440 "$sudoers_tmp" "$sudoers_path"

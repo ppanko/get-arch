@@ -28,3 +28,5 @@ jobs:
         run: shellcheck get-arch lib/*.sh modules/*.sh tests/*.sh tests/run
       - name: Run tests
         run: ./tests/run
+      - name: Exercise full check mode
+        run: printf 'ciuser\nci-host\n' | ./get-arch --check
