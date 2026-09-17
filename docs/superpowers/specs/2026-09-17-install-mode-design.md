@@ -12,7 +12,8 @@ chroot.
 
 Normal mode remains the interactive, rerunnable workstation-maintenance path.
 It continues to prompt for username and hostname, may create a missing user,
-may set or repair that user's password, performs `pacman -Syu`, and starts SSH.
+may set or repair that user's password, performs `pacman -Syu`, starts SSH, and
+retains the existing interactive AUR workflow.
 
 Install mode is an initial-provisioning path. It:
 
@@ -24,23 +25,31 @@ Install mode is an initial-provisioning path. It:
 - never creates a user or changes a password;
 - may add the selected user to `wheel` and install get-arch's normal wheel
   sudoers policy;
-- skips `pacman -Syu` while retaining all normal package and hardware setup;
+- skips `pacman -Syu` while retaining all normal official package and hardware
+  setup;
 - reads physical hardware from the API filesystems exposed to the chroot;
 - evaluates network-manager conflicts using target unit enablement only;
 - enables required units offline for first boot and never starts them;
-- does not depend on `/etc/fstab` having been generated.
+- does not depend on `/etc/fstab` having been generated;
+- remains noninteractive when invoked through Archinstall `custom_commands`.
 
 ## AUR provisioning
 
-Install mode performs AUR work before first boot in one PTY-backed session as
-the selected user. Root installs the official build prerequisites first. The
-user session performs one `sudo -v`, builds paru without root privileges, and
-runs paru for the declared AUR packages. No temporary sudo policy or other
-privilege bypass is introduced.
+AUR work is deferred in install mode. Archinstall 4.4's `custom_commands`
+execution path does not provide a usable interactive stdin channel for a sudo
+password prompt, so install mode must not enter a target-user PTY session or
+run `sudo`, `makepkg`, or `paru`. It loads the declared AUR package list and
+logs which packages are deferred until after first boot. No temporary
+passwordless sudo policy or other privilege bypass is introduced.
+
+Normal mode keeps the existing interactive AUR behavior. A later first-boot or
+custom-USB completion step may install the deferred AUR packages with a real
+interactive terminal, but that is outside this install-mode change.
 
 ## Verification
 
 Focused shell tests cover parsing and mode separation, identity selection and
-mutation boundaries, orchestration, services, network conflicts, and AUR
-session behavior. The full shell suite, Bash syntax checks, ShellCheck, and a
-top-level `./get-arch --check` regression run must pass before opening the PR.
+mutation boundaries, orchestration, services, network conflicts, and the
+noninteractive AUR deferral boundary. The full shell suite, Bash syntax checks,
+ShellCheck, and top-level normal/install check regressions must pass before
+merge.
