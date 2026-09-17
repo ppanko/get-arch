@@ -63,3 +63,10 @@ for obsolete in pulseaudio flashplugin pakku xf86-input-synaptics exfat-utils fu
     exit 1
   fi
 done
+
+for module_owned in gdm gnome-control-center gnome-keyring gnome-shell nautilus networkmanager openssh pipewire wireplumber power-profiles-daemon sudo; do
+  if grep -Fxq "$module_owned" <<< "$official"; then
+    printf 'FAIL: module-owned package retained in declarative package set: %s\n' "$module_owned" >&2
+    exit 1
+  fi
+done
