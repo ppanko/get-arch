@@ -66,7 +66,7 @@ source modules/laptop.sh
 
 CALLS=''; GPU_VENDORS=(intel amd); NVIDIA_DEVICE_IDS=(); INSTALLED_KERNEL=''
 configure_graphics
-assert_eq 'packages:mesa vulkan-intel vulkan-radeon switcheroo-control' "${CALLS%$'\n'}" 'intel+amd graphics policy'
+assert_eq $'packages:mesa vulkan-intel vulkan-radeon switcheroo-control\nenable:switcheroo-control.service' "${CALLS%$'\n'}" 'intel+amd graphics policy enables switcheroo-control'
 
 CALLS=''; GPU_VENDORS=(nvidia); NVIDIA_DEVICE_IDS=(0x2191); INSTALLED_KERNEL=linux
 configure_graphics
