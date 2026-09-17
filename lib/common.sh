@@ -47,12 +47,21 @@ run_interactive_mutation() {
 
 ensure_service_enabled() {
   local unit=$1
-  systemctl is-enabled --quiet "$unit" 2>/dev/null && { log_skip "$unit already enabled"; return; }
-  run_mutation "Enable $unit" systemctl enable "$unit"
+  if (( INSTALL_MODE )); then
+    systemctl --root=/ is-enabled --quiet "$unit" 2>/dev/null && { log_skip "$unit already enabled"; return; }
+    run_mutation "Enable $unit" systemctl --root=/ enable "$unit"
+  else
+    systemctl is-enabled --quiet "$unit" 2>/dev/null && { log_skip "$unit already enabled"; return; }
+    run_mutation "Enable $unit" systemctl enable "$unit"
+  fi
 }
 
 ensure_service_started() {
   local unit=$1
+  if (( INSTALL_MODE )); then
+    log_skip "$unit will start after the installed system boots"
+    return 0
+  fi
   systemctl is-active --quiet "$unit" 2>/dev/null && { log_skip "$unit already active"; return; }
   run_mutation "Start $unit" systemctl start "$unit"
 }

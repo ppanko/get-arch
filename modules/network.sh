@@ -2,8 +2,12 @@
 
 network_unit_active_or_enabled() {
   local unit=$1
-  systemctl is-enabled --quiet "$unit" 2>/dev/null \
-    || systemctl is-active --quiet "$unit" 2>/dev/null
+  if (( INSTALL_MODE )); then
+    systemctl --root=/ is-enabled --quiet "$unit" 2>/dev/null
+  else
+    systemctl is-enabled --quiet "$unit" 2>/dev/null \
+      || systemctl is-active --quiet "$unit" 2>/dev/null
+  fi
 }
 
 conflicting_network_manager() {
@@ -34,10 +38,11 @@ conflicting_network_manager() {
 }
 
 configure_network() {
-  local conflict=''
+  local conflict='' conflict_state='active or enabled'
   conflict=$(conflicting_network_manager || true)
   if [[ -n $conflict ]]; then
-    die "Conflicting network manager $conflict is active or enabled. Choose NetworkManager in archinstall, or migrate/disable the conflicting manager before rerunning get-arch."
+    (( INSTALL_MODE )) && conflict_state='enabled in the installed system'
+    die "Conflicting network manager $conflict is $conflict_state. Choose NetworkManager in archinstall, or migrate/disable the conflicting manager before rerunning get-arch."
     return 1
   fi
   ensure_packages networkmanager
