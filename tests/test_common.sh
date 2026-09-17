@@ -33,4 +33,4 @@ run_as_user_mutation pavel 'user command' printf hello
 assert_eq '' "$(cat "$RUNUSER_CALLS")" 'check mode avoids runuser'
 CHECK_MODE=0
 run_as_user_mutation pavel 'user command' printf hello
-assert_eq '-u pavel -- printf hello' "$(cat "$RUNUSER_CALLS")" 'user mutation uses runuser'
+assert_eq '--pty -u pavel -- printf hello' "$(cat "$RUNUSER_CALLS")" 'user mutation isolates command in a pseudo-terminal'
