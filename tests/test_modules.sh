@@ -170,14 +170,16 @@ install_aur_packages
 [[ "$CALLS" != *'user:'* ]] || { echo 'FAIL: empty AUR list invoked user mutation' >&2; exit 1; }
 
 CALLS=''; USER_CALL_COUNT=0; AUR_FIXTURE=(foo bar); INSTALL_MODE=1
-install_aur_packages_install_mode
-assert_eq 1 "$USER_CALL_COUNT" 'install mode uses one target-user PTY session for all AUR work'
-assert_contains "$CALLS" 'packages:base-devel git rust' 'root installs only official AUR build prerequisites'
-assert_contains "$CALLS" 'user:pavel:Provision AUR packages: foo bar:bash -lc' 'combined AUR session runs as selected user'
-assert_contains "$CALLS" 'sudo -v' 'combined AUR session authenticates sudo once up front'
-assert_contains "$CALLS" 'git clone https://aur.archlinux.org/paru.git' 'paru source is cloned by target user'
-assert_contains "$CALLS" 'makepkg -si --needed --noconfirm' 'paru is built unprivileged and installed through makepkg privilege boundary'
-# The expected string is the literal code passed to the target-user shell.
-# shellcheck disable=SC2016
-assert_contains "$CALLS" 'paru -S --needed --noconfirm -- "${packages[@]}"' 'declared AUR packages share the authenticated user session'
-[[ "$CALLS" != *'NOPASSWD'* ]] || { echo 'FAIL: install mode introduced passwordless sudo' >&2; exit 1; }
+defer_aur_packages_install_mode
+assert_eq 0 "$USER_CALL_COUNT" 'install mode never opens an interactive target-user AUR session'
+assert_contains "$CALLS" 'info:AUR packages deferred until first boot: foo bar' 'install mode reports deferred AUR packages explicitly'
+[[ "$CALLS" != *'packages:base-devel'* ]] || { echo 'FAIL: install mode installed AUR build prerequisites despite deferral' >&2; exit 1; }
+[[ "$CALLS" != *'sudo -v'* && "$CALLS" != *'makepkg'* && "$CALLS" != *'paru -S'* ]] || {
+  echo 'FAIL: install mode retained interactive AUR authentication/build work' >&2
+  exit 1
+}
+
+CALLS=''; USER_CALL_COUNT=0; AUR_FIXTURE=(); INSTALL_MODE=1
+defer_aur_packages_install_mode
+assert_eq 0 "$USER_CALL_COUNT" 'empty install-mode AUR set never opens a user session'
+assert_contains "$CALLS" 'skip:No AUR packages declared' 'empty install-mode AUR set reports nothing to defer'
