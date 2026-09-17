@@ -40,6 +40,7 @@ command = custom_commands[0]
 lines = command.splitlines()
 assert lines[0] == 'set -euo pipefail', lines
 
+cleanup_command = 'rm -rf /opt/get-arch'
 clone_command = (
     'git clone --no-checkout https://github.com/ppanko/get-arch.git '
     '/opt/get-arch'
@@ -48,9 +49,12 @@ checkout_command = (
     f'git -C /opt/get-arch checkout --detach {pinned_revision}'
 )
 install_command = '/opt/get-arch/get-arch --install-mode'
+assert cleanup_command in lines, lines
 assert clone_command in lines, lines
 assert checkout_command in lines, lines
 assert install_command in lines, lines
+assert [line for line in lines if line.startswith('rm ')] == [cleanup_command], lines
+assert lines.index(cleanup_command) < lines.index(clone_command), lines
 assert lines.index(clone_command) < lines.index(checkout_command), lines
 assert lines.index(checkout_command) < lines.index(install_command), lines
 
