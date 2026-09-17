@@ -68,11 +68,14 @@ orig_path=$PATH
 aur_tmp=$(mktemp -d)
 trap 'rm -rf "$aur_tmp"' EXIT
 
-CALLS=''; PATH=/usr/bin:/bin
+mkdir -p "$aur_tmp/no-paru-bin"
+ln -s "$(command -v cat)" "$aur_tmp/no-paru-bin/cat"
+CALLS=''; PATH="$aur_tmp/no-paru-bin"
 ensure_aur_helper
 assert_contains "$CALLS" 'packages:base-devel git rust' 'paru bootstrap dependencies'
 assert_contains "$CALLS" 'user:pavel:Build paru AUR helper:bash -lc' 'paru built as user'
 
+PATH=$orig_path
 cat > "$aur_tmp/paru" <<'SH'
 #!/usr/bin/env bash
 exit 0
