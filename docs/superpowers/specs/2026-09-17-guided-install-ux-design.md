@@ -93,16 +93,18 @@ The existing `/run/get-arch-install.started` sentinel remains a guard against lo
 
 Disk automation is intentionally fail-closed.
 
-The launcher identifies candidate installation disks from block-device metadata. A disk is eligible for automatic preselection only when all of the following are true:
+The launcher identifies candidate installation disks from current block-device and live-mount metadata. A disk is eligible for automatic preselection only when all of the following are true:
 
-- it is a whole block device rather than a partition;
-- it is not removable;
-- it is not the live installer medium or an ancestor of the mounted live filesystem;
-- it is not a loop, optical, RAM, mapper, or other virtual/pseudo device;
-- it presents as a normal internal storage device suitable for installation;
-- exactly one such candidate remains.
+- it is a whole block device (`TYPE=disk`) rather than a partition;
+- it is not marked removable (`RM=0`);
+- it is not USB transport, even if the device reports itself non-removable;
+- it is not the live installer medium or the parent disk backing the mounted live ISO; when the normal Archiso boot mount is present, its source must be resolved back to the parent disk and excluded;
+- it is not a loop, optical, RAM, mapper, zram, or other virtual/pseudo device;
+- exactly one candidate remains after those exclusions.
 
 The implementation must identify disks by current runtime metadata, not by assuming stable names such as `/dev/sda` or `/dev/nvme0n1`.
+
+The USB-transport exclusion is deliberately conservative. Installing to an external USB disk remains possible through normal interactive Archinstall disk selection; get-arch simply will not preselect such a disk for erasure.
 
 When exactly one candidate remains, show at least:
 
@@ -223,7 +225,7 @@ archinstall/
   get-arch.json             # unchanged canonical portable preset
 scripts/
   build-iso                 # embeds launcher/helper/preset
- tests/
+tests/
   test_archiso.sh           # structural and behavioral launcher tests
   ...                       # focused disk-helper tests as needed
 ```
@@ -246,6 +248,7 @@ Routine tests must cover at least:
 ### Disk safety
 
 - the installer USB is excluded;
+- all USB-transport disks are excluded from automatic preselection even when `RM=0`;
 - removable disks are excluded;
 - partitions and pseudo-devices are excluded;
 - exactly one eligible internal disk can be proposed;
@@ -288,6 +291,7 @@ This change does not:
 
 - create a fully unattended installer;
 - choose among multiple plausible target disks;
+- automatically preselect USB-transport storage;
 - partition or format disks outside Archinstall;
 - silently erase a disk;
 - automate disk encryption;
