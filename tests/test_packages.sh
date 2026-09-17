@@ -4,6 +4,7 @@ source tests/testlib.sh
 source lib/common.sh
 source lib/packages.sh
 
+repo_root=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 tmp=$(mktemp -d)
 trap 'rm -rf "$tmp"' EXIT
 mkdir -p "$tmp/packages" "$tmp/bin"
@@ -37,3 +38,28 @@ ensure_packages git python
 assert_eq '-S --needed --noconfirm -- git python' "$(cat "$PACMAN_CALLS")" 'normal package invocation'
 
 validate_package_files
+
+REPO_ROOT=$repo_root
+validate_package_files
+official=$(load_official_packages)
+aur=$(load_aur_packages)
+
+for required in chromium git r libreoffice-still vlc ufw; do
+  grep -Fxq "$required" <<< "$official" || {
+    printf 'FAIL: canonical package set missing %s\n' "$required" >&2
+    exit 1
+  }
+done
+
+grep -Fxq openai-codex-bin <<< "$aur" || {
+  printf 'FAIL: canonical AUR package set missing openai-codex-bin\n' >&2
+  exit 1
+}
+
+all_packages="$official"$'\n'"$aur"
+for obsolete in pulseaudio flashplugin pakku xf86-input-synaptics exfat-utils fuse-exfat; do
+  if grep -Fxq "$obsolete" <<< "$all_packages"; then
+    printf 'FAIL: obsolete package retained: %s\n' "$obsolete" >&2
+    exit 1
+  fi
+done
