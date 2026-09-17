@@ -98,9 +98,9 @@ AUR work is deliberately deferred in installation mode. Archinstall 4.4 does
 not provide a usable interactive stdin path for password prompts from
 `custom_commands`, so install mode never attempts `sudo`, `makepkg`, `paru`, or
 another target-user AUR session. Declared AUR packages are reported in the log
-as deferred. They can be completed interactively after first boot without
-requiring another reboot. Normal `./get-arch` mode retains the existing
-interactive AUR behavior.
+as deferred and can be completed interactively after first boot without
+another reboot. Normal `./get-arch` mode retains the existing interactive AUR
+behavior.
 
 For a non-destructive inspection from inside the target chroot, add `--check`:
 
