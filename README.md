@@ -100,6 +100,43 @@ For a non-destructive inspection from inside the target chroot, add `--check`:
 The custom command is fail-fast. A clone, checkout, or provisioning failure is
 reported as an Archinstall failure rather than being ignored.
 
+## Build the custom installer ISO
+
+On an Arch Linux build host, install Archiso and run the unprivileged wrapper:
+
+```bash
+sudo pacman -S --needed archiso
+./scripts/build-iso
+```
+
+The generated ISO is written to `out/` by default. The builder itself does not
+use `sudo`, modify `/usr/share/archiso`, select disks, or flash media. It copies
+the current official `releng` profile into disposable build state and overlays
+the canonical `archinstall/get-arch.json` preset. AUR packages remain deferred
+until an interactive session after first boot.
+
+### Smoke-test before flashing
+
+Install the QEMU prerequisites and boot the generated image with Archiso's
+`run_archiso` helper:
+
+```bash
+sudo pacman -S --needed qemu-desktop edk2-ovmf
+run_archiso -u -i out/<generated-iso-name>.iso
+```
+
+Confirm all of the following before approving any USB flash:
+
+1. tty1 autologin occurs.
+2. With QEMU networking available, Archinstall launches once using `/root/get-arch.json`.
+3. Cancelling or exiting Archinstall returns to the live root shell.
+4. A new tty1 login shell does not relaunch Archinstall automatically.
+5. `archinstall --config /root/get-arch.json` remains available for a deliberate retry.
+6. No USB is flashed until this smoke test passes.
+
+The ISO builder never flashes USB media; flashing is a separate, explicitly
+confirmed operation outside this workflow.
+
 ## Package maintenance
 
 To compare the repository with a current workstation, capture explicitly installed official and foreign packages:
