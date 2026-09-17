@@ -11,7 +11,8 @@ log_info() { CALLS+="info:$*"$'\n'; }
 die() { CALLS+="die:$*"$'\n'; return 1; }
 
 NETWORK_CONFLICT=''
-# shellcheck disable=SC2034 -- consumed by sourced network module.
+# Consumed by the sourced network module.
+# shellcheck disable=SC2034
 NETWORK_INTERFACES=(enp3s0 wlan0)
 systemctl() {
   local action=${1:-} unit=${3:-${2:-}}
