@@ -20,8 +20,8 @@ jobs:
     container: archlinux:latest
     steps:
       - uses: actions/checkout@v7
-      - name: Install ShellCheck
-        run: pacman -Syu --noconfirm shellcheck
+      - name: Install test dependencies
+        run: pacman -Syu --noconfirm shellcheck python
       - name: Check Bash syntax
         run: bash -n get-arch lib/*.sh modules/*.sh tests/*.sh tests/run
       - name: Run ShellCheck
