@@ -51,6 +51,20 @@ detect_gpu_vendors() {
   shopt -u nullglob
 }
 
+detect_nvidia_device_ids() {
+  local vendor_file device_file vendor device
+  shopt -s nullglob
+  for vendor_file in "$(system_path /sys/class/drm)"/card*/device/vendor; do
+    device_file=${vendor_file%/vendor}/device
+    [[ -r $vendor_file && -r $device_file ]] || continue
+    vendor=$(<"$vendor_file")
+    [[ ${vendor,,} == 0x10de ]] || continue
+    device=$(<"$device_file")
+    printf '%s\n' "${device,,}"
+  done | sort -u
+  shopt -u nullglob
+}
+
 detect_network_interfaces() {
   local iface_path iface
   shopt -s nullglob
@@ -74,6 +88,8 @@ detect_system() {
   if detect_has_battery; then HAS_BATTERY=1; else HAS_BATTERY=0; fi
   # shellcheck disable=SC2034
   mapfile -t GPU_VENDORS < <(detect_gpu_vendors)
+  # shellcheck disable=SC2034
+  mapfile -t NVIDIA_DEVICE_IDS < <(detect_nvidia_device_ids)
   # shellcheck disable=SC2034
   mapfile -t NETWORK_INTERFACES < <(detect_network_interfaces)
 }

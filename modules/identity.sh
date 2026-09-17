@@ -11,11 +11,39 @@ validate_hostname() {
   [[ ${#1} -le 63 && $1 =~ ^[A-Za-z0-9]([A-Za-z0-9-]*[A-Za-z0-9])?$ ]]
 }
 
+normal_uid_bounds() {
+  local login_defs value uid_min=1000 uid_max=60000
+  login_defs=$(system_path /etc/login.defs)
+  if [[ -r $login_defs ]]; then
+    value=$(awk '$1 == "UID_MIN" { print $2; exit }' "$login_defs")
+    [[ $value =~ ^[0-9]+$ ]] && uid_min=$value
+    value=$(awk '$1 == "UID_MAX" { print $2; exit }' "$login_defs")
+    [[ $value =~ ^[0-9]+$ ]] && uid_max=$value
+  fi
+  printf '%s %s\n' "$uid_min" "$uid_max"
+}
+
+validate_target_user() {
+  local username=$1 uid uid_min uid_max
+  validate_username "$username" || return 1
+  if uid=$(id -u "$username" 2>/dev/null); then
+    [[ $uid =~ ^[0-9]+$ ]] || return 1
+    read -r uid_min uid_max < <(normal_uid_bounds)
+    (( uid >= uid_min && uid <= uid_max )) || return 1
+  fi
+}
+
+user_has_usable_password() {
+  local status
+  status=$(passwd -S "$1" 2>/dev/null) || return 1
+  [[ $status =~ ^[^[:space:]]+[[:space:]]+P([[:space:]]|$) ]]
+}
+
 prompt_identity() {
   while :; do
     read -r -p 'Username: ' USERNAME
-    validate_username "$USERNAME" && break
-    log_fail 'Invalid username. Use lowercase letters, digits, underscores, and hyphens; do not begin with a hyphen.'
+    validate_target_user "$USERNAME" && break
+    log_fail 'Invalid workstation user. Use a normal login username; root and system accounts are not valid.'
   done
   while :; do
     read -r -p 'Hostname: ' HOSTNAME_VALUE
@@ -25,10 +53,17 @@ prompt_identity() {
 }
 
 configure_identity() {
-  local created_user=0 groups='' sudoers_path sudoers_tmp current_hostname=''
+  local created_user=0 user_exists=0 groups='' sudoers_path sudoers_tmp current_hostname=''
+
+  if ! validate_target_user "$USERNAME"; then
+    die "Refusing workstation user '$USERNAME': choose a normal login account, not root or a system account."
+    return 1
+  fi
+
   ensure_packages sudo
 
   if id -u "$USERNAME" >/dev/null 2>&1; then
+    user_exists=1
     groups=$(id -nG "$USERNAME" 2>/dev/null || true)
     if [[ " $groups " != *' wheel '* ]]; then
       run_mutation "Add $USERNAME to wheel" usermod -aG wheel "$USERNAME"
@@ -74,5 +109,9 @@ configure_identity() {
 
   if (( created_user )); then
     run_interactive_mutation "Set password for $USERNAME" passwd "$USERNAME"
+  elif (( user_exists )) && ! user_has_usable_password "$USERNAME"; then
+    run_interactive_mutation "Set password for $USERNAME" passwd "$USERNAME"
+  else
+    log_skip "$USERNAME already has a usable password"
   fi
 }
