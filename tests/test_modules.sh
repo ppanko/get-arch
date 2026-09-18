@@ -172,7 +172,7 @@ install_aur_packages
 run_mutation() {
   local label=$1
   shift
-  CALLS+="mutation:$label:$*"\n'
+  CALLS+="mutation:$label:$*"$'\\n'
 }
 system_path() { printf '%s\n' "$1"; }
 aur_completion_user_home() { printf '/home/pavel\n'; }
