@@ -8,4 +8,6 @@ gnome-terminal
 gnome-tweaks
 loupe
 noto-fonts
+ttf-inconsolata
+ttf-nerd-fonts-symbols-mono
 xdg-user-dirs
