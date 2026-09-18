@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
 
-STATE_DIR=${GET_ARCH_AUR_STATE_DIR:-${XDG_STATE_HOME:-$HOME/.local/state}/get-arch}
+STATE_DIR=${GET_ARCH_AUR_STATE_DIR:-$HOME/.local/state/get-arch}
 PACKAGE_FILE="$STATE_DIR/aur-packages"
 AUTOSTART_FILE=${GET_ARCH_AUR_AUTOSTART_FILE:-$HOME/.config/autostart/get-arch-aur-completion.desktop}
 LOG_FILE="$STATE_DIR/aur-completion.log"
@@ -88,7 +88,7 @@ main() {
 
   validate_packages "${packages[@]}"
 
-  log "Completing get-arch installation for user $USER."
+  log "Completing get-arch installation for user $(id -un)."
   log "Pending AUR packages: ${packages[*]}"
   log 'Administrator authentication is required to install packages.'
   sudo -v
