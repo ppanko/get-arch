@@ -119,8 +119,8 @@ sudo pacman -S --needed archiso
 The generated ISO is written to `out/` by default. The builder itself does not
 use `sudo`, modify `/usr/share/archiso`, select disks, or flash media. It copies
 the current official `releng` profile into disposable build state and overlays
-the canonical `archinstall/get-arch.json` preset. AUR packages remain deferred
-until an interactive session after first boot.
+the canonical `archinstall/get-arch.json` preset. AUR package builds remain deferred only until the automatic first-login
+continuation can run in a real interactive terminal.
 
 ### Smoke-test before flashing
 
