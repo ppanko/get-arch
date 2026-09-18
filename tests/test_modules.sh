@@ -139,6 +139,7 @@ USER_CALL_COUNT=0
 AUR_FIXTURE=()
 load_aur_packages() { ((${#AUR_FIXTURE[@]})) && printf '%s\n' "${AUR_FIXTURE[@]}"; }
 USERNAME=pavel
+REPO_ROOT=/repo
 source modules/aur.sh
 
 orig_path=$PATH
@@ -169,17 +170,35 @@ CALLS=''; AUR_FIXTURE=()
 install_aur_packages
 [[ "$CALLS" != *'user:'* ]] || { echo 'FAIL: empty AUR list invoked user mutation' >&2; exit 1; }
 
+run_mutation() {
+  local label=$1
+  shift
+  CALLS+="mutation:$label:$*"$'\n'
+}
+system_path() { printf '%s\n' "$1"; }
+aur_completion_user_home() { printf '/home/pavel\n'; }
+id() {
+  case "${1:-}" in
+    -u|-g) printf '1000\n' ;;
+    *) command id "$@" ;;
+  esac
+}
+
 CALLS=''; USER_CALL_COUNT=0; AUR_FIXTURE=(foo bar); INSTALL_MODE=1
-defer_aur_packages_install_mode
+schedule_aur_completion_install_mode
 assert_eq 0 "$USER_CALL_COUNT" 'install mode never opens an interactive target-user AUR session'
-assert_contains "$CALLS" 'info:AUR packages deferred until first boot: foo bar' 'install mode reports deferred AUR packages explicitly'
-[[ "$CALLS" != *'packages:base-devel'* ]] || { echo 'FAIL: install mode installed AUR build prerequisites despite deferral' >&2; exit 1; }
-[[ "$CALLS" != *'sudo -v'* && "$CALLS" != *'makepkg'* && "$CALLS" != *'paru -S'* ]] || {
-  echo 'FAIL: install mode retained interactive AUR authentication/build work' >&2
+assert_contains "$CALLS" 'packages:base-devel git rust gnome-terminal' 'install mode stages first-login AUR prerequisites'
+assert_contains "$CALLS" 'mutation:Install first-login AUR completion helper:install -Dm0755' 'install mode installs the completion helper'
+assert_contains "$CALLS" 'mutation:Record pending AUR package set:install -m0600 -o 1000 -g 1000' 'install mode records the deferred package set for the existing user'
+assert_contains "$CALLS" 'mutation:Schedule first-login AUR completion:install -m0644 -o 1000 -g 1000' 'install mode schedules a per-user first-login continuation'
+assert_contains "$CALLS" 'info:AUR completion scheduled for the first GNOME login of pavel: foo bar' 'install mode reports the automatic continuation'
+[[ "$CALLS" != *'sudo -v'* && "$CALLS" != *'makepkg -si'* && "$CALLS" != *'paru -S'* ]] || {
+  echo 'FAIL: install mode attempted interactive AUR authentication/build work inside Archinstall' >&2
   exit 1
 }
 
 CALLS=''; USER_CALL_COUNT=0; AUR_FIXTURE=(); INSTALL_MODE=1
-defer_aur_packages_install_mode
+schedule_aur_completion_install_mode
 assert_eq 0 "$USER_CALL_COUNT" 'empty install-mode AUR set never opens a user session'
-assert_contains "$CALLS" 'skip:No AUR packages declared' 'empty install-mode AUR set reports nothing to defer'
+assert_contains "$CALLS" 'skip:No AUR packages declared' 'empty install-mode AUR set schedules no continuation'
+[[ "$CALLS" != *'mutation:'* ]] || { echo 'FAIL: empty AUR set created completion state' >&2; exit 1; }

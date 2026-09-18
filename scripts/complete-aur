@@ -1,0 +1,131 @@
+#!/usr/bin/env bash
+set -Eeuo pipefail
+
+STATE_DIR=${GET_ARCH_AUR_STATE_DIR:-$HOME/.local/state/get-arch}
+PACKAGE_FILE="$STATE_DIR/aur-packages"
+AUTOSTART_FILE=${GET_ARCH_AUR_AUTOSTART_FILE:-$HOME/.config/autostart/get-arch-aur-completion.desktop}
+LOG_FILE="$STATE_DIR/aur-completion.log"
+
+log() { printf '[get-arch] %s\n' "$*"; }
+
+pause_on_failure() {
+  local status=$?
+  trap - ERR
+  log "AUR completion failed with status $status."
+  log "The pending state was kept and get-arch will retry at the next GNOME login."
+  log "Log: $LOG_FILE"
+  if [[ -t 0 ]]; then
+    read -r -p 'Press Enter to close this window. ' || true
+  fi
+  exit "$status"
+}
+
+require_normal_user() {
+  (( EUID != 0 )) || {
+    log 'Run this first-login completion as the installed desktop user, not root.'
+    return 1
+  }
+}
+
+load_pending_aur_packages() {
+  [[ -f $PACKAGE_FILE ]] || return 0
+  awk '{
+    sub(/[[:space:]]*#.*/, "")
+    gsub(/^[[:space:]]+|[[:space:]]+$/, "")
+    if (length) print
+  }' "$PACKAGE_FILE"
+}
+
+validate_packages() {
+  local package
+  for package in "$@"; do
+    [[ $package =~ ^[[:alnum:]@._+:-]+$ ]] || {
+      log "Invalid pending AUR package entry: $package"
+      return 1
+    }
+  done
+}
+
+wait_for_network() {
+  local attempt
+  command -v curl >/dev/null 2>&1 || {
+    log 'curl is required to check AUR network readiness.'
+    return 1
+  }
+
+  for attempt in 1 2 3 4 5 6 7 8 9 10; do
+    if curl --silent --fail --head --connect-timeout 2 --max-time 3 https://aur.archlinux.org/ >/dev/null; then
+      return 0
+    fi
+    if (( attempt < 10 )); then
+      log "AUR network is not ready yet (attempt $attempt/10); retrying..."
+      sleep 2
+    fi
+  done
+
+  log 'AUR network did not become ready after bounded retries.'
+  return 1
+}
+
+bootstrap_paru() {
+  command -v paru >/dev/null 2>&1 && {
+    log 'paru is already installed.'
+    return 0
+  }
+
+  command -v git >/dev/null 2>&1 || { log 'git is required to bootstrap paru.'; return 1; }
+  command -v makepkg >/dev/null 2>&1 || { log 'makepkg is required to bootstrap paru.'; return 1; }
+
+  local build_dir="$HOME/.cache/get-arch/paru"
+  rm -rf "$build_dir"
+  mkdir -p "$(dirname "$build_dir")"
+
+  log 'Bootstrapping paru...'
+  git clone --depth 1 https://aur.archlinux.org/paru.git "$build_dir"
+  (
+    cd "$build_dir"
+    makepkg -si --needed --noconfirm
+  )
+  rm -rf "$build_dir"
+}
+
+main() {
+  require_normal_user
+
+  mkdir -p "$STATE_DIR"
+  touch "$LOG_FILE"
+  exec > >(tee -a "$LOG_FILE") 2>&1
+  trap pause_on_failure ERR
+
+  local packages=()
+  mapfile -t packages < <(load_pending_aur_packages)
+
+  if ((${#packages[@]} == 0)); then
+    log 'No pending AUR packages remain.'
+    rm -f "$PACKAGE_FILE" "$AUTOSTART_FILE"
+    trap - ERR
+    return 0
+  fi
+
+  validate_packages "${packages[@]}"
+
+  log "Completing get-arch installation for user $(id -un)."
+  log "Pending AUR packages: ${packages[*]}"
+  wait_for_network
+
+  log 'Administrator authentication is required to install packages.'
+  sudo -v
+
+  bootstrap_paru
+
+  log 'Installing pending AUR packages...'
+  paru -S --needed --noconfirm --skipreview --sudoloop -- "${packages[@]}"
+
+  rm -f "$PACKAGE_FILE" "$AUTOSTART_FILE"
+  trap - ERR
+  log 'AUR provisioning complete. get-arch installation is complete.'
+}
+
+if [[ ${BASH_SOURCE[0]} == "$0" ]]; then
+  main "$@"
+fi
