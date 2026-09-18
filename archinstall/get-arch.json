@@ -20,5 +20,6 @@
       "details": [],
       "main": "Minimal"
     }
-  }
+  },
+  "timezone": "America/New_York"
 }

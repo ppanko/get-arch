@@ -10,7 +10,7 @@ The physical installation test validated the existing architecture. The remainin
 2. repeating the same known-good disk-layout choices in Archinstall;
 3. knowing what account choices to make once Archinstall opens.
 
-This change automates only the disk-layout defaults. Wi-Fi, account creation, encryption, bootloader, locale, timezone, and the final install confirmation remain interactive.
+This change automates only the disk-layout defaults and seeds a workstation timezone default. Wi-Fi, account creation, encryption, bootloader, locale, timezone selection, and the final install confirmation remain interactive. The canonical preset preselects `America/New_York` so a fresh install does not depend on Archinstall's implicit timezone default; the user may change it in Archinstall.
 
 Target flow:
 
@@ -28,7 +28,7 @@ boot custom USB
        -> validated ext4 best-effort disk layout is already populated when available
        -> account creation remains interactive
        -> encryption remains interactive
-       -> bootloader/hostname/locale/timezone remain interactive
+       -> bootloader/hostname/locale remain interactive; timezone is prefilled as America/New_York and remains editable
        -> user reviews the complete configuration and chooses Install
   -> Archinstall installs the base system
   -> existing pinned get-arch --install-mode provisioning runs in the target
@@ -179,7 +179,7 @@ The user continues to control:
 - sudo-capable user creation;
 - hostname;
 - locale and keyboard settings;
-- timezone;
+- timezone, prefilled as `America/New_York` but editable;
 - final configuration review;
 - final Install confirmation.
 
@@ -190,6 +190,7 @@ The existing portable preset continues to provide:
 - NetworkManager;
 - NTP;
 - Git;
+- `America/New_York` as an editable timezone default;
 - pinned `get-arch --install-mode` provisioning.
 
 ## Failure and recovery
@@ -222,7 +223,7 @@ archiso/
   get-arch-install          # tty1 orchestration, Wi-Fi guidance, user-facing flow
   get-arch-disk-config      # small helper for safe Archinstall disk-config generation
 archinstall/
-  get-arch.json             # unchanged canonical portable preset
+  get-arch.json             # canonical preset with editable timezone default
 scripts/
   build-iso                 # embeds launcher/helper/preset
 tests/
@@ -276,6 +277,7 @@ Routine tests must cover at least:
 - account configuration remains absent from repository and runtime generated config;
 - secrets do not appear in logs or files created by get-arch;
 - pinned target provisioning still runs after base installation;
+- the canonical preset requires `timezone = America/New_York`, and the runtime disk overlay preserves that field unchanged;
 - existing syntax, ShellCheck, test suite, and `./get-arch --check` remain green.
 
 A real ISO smoke test must additionally exercise both paths:

@@ -24,6 +24,8 @@ jobs:
         run: pacman -Syu --noconfirm shellcheck python
       - name: Check Bash syntax
         run: bash -n get-arch lib/*.sh modules/*.sh tests/*.sh tests/run scripts/* archiso/get-arch-install
+      - name: Check Python syntax
+        run: python -m py_compile archiso/get-arch-disk-config tests/test_disk_config.py
       - name: Run ShellCheck
         run: shellcheck get-arch lib/*.sh modules/*.sh tests/*.sh tests/run scripts/* archiso/get-arch-install
       - name: Run tests
