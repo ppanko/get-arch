@@ -139,6 +139,7 @@ USER_CALL_COUNT=0
 AUR_FIXTURE=()
 load_aur_packages() { ((${#AUR_FIXTURE[@]})) && printf '%s\n' "${AUR_FIXTURE[@]}"; }
 USERNAME=pavel
+REPO_ROOT=/repo
 source modules/aur.sh
 
 orig_path=$PATH
