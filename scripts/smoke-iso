@@ -1,0 +1,71 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+readonly OVMF_CODE=/usr/share/edk2/x64/OVMF_CODE.4m.fd
+readonly OVMF_VARS=/usr/share/edk2/x64/OVMF_VARS.4m.fd
+
+fail() {
+  printf 'get-arch ISO smoke test: %s\n' "$*" >&2
+  exit 1
+}
+
+iso=${1:-}
+disk_count=${2:-1}
+
+[[ -n $iso ]] || fail 'usage: bash scripts/smoke-iso PATH_TO_ISO [1|2]'
+[[ -f $iso ]] || fail "ISO not found: $iso"
+case $disk_count in
+  1|2) ;;
+  *) fail 'disk count must be 1 or 2' ;;
+esac
+
+for command in qemu-system-x86_64 qemu-img; do
+  command -v "$command" >/dev/null 2>&1 || fail "missing required command: $command"
+done
+[[ -f $OVMF_CODE ]] || fail "missing UEFI firmware: $OVMF_CODE"
+[[ -f $OVMF_VARS ]] || fail "missing UEFI variable store: $OVMF_VARS"
+
+tmp_root=$(mktemp -d "${TMPDIR:-/tmp}/get-arch-smoke.XXXXXX")
+readonly tmp_root
+cleanup() {
+  rm -rf -- "$tmp_root"
+}
+trap cleanup EXIT HUP INT TERM
+
+vars_copy="$tmp_root/OVMF_VARS.4m.fd"
+cp -- "$OVMF_VARS" "$vars_copy"
+
+declare -a disk_args=()
+for ((index = 1; index <= disk_count; index++)); do
+  disk="$tmp_root/install-${index}.qcow2"
+  qemu-img create -q -f qcow2 "$disk" 64G
+  disk_args+=(
+    -drive "if=none,id=install${index},format=qcow2,file=${disk}"
+    -device "virtio-blk-pci,drive=install${index}"
+  )
+done
+
+declare -a qemu_args=(
+  -machine q35
+  -m 3072
+  -smp 4
+  -drive "if=pflash,format=raw,unit=0,file=${OVMF_CODE},readonly=on"
+  -drive "if=pflash,format=raw,unit=1,file=${vars_copy}"
+  -cdrom "$iso"
+  -boot 'order=d,menu=on'
+  -device 'virtio-net-pci,netdev=net0'
+  -netdev 'user,id=net0'
+  -device qemu-xhci
+  -device usb-kbd
+  -device usb-mouse
+  -vga virtio
+  -no-reboot
+)
+
+if [[ -r /dev/kvm && -w /dev/kvm ]]; then
+  qemu_args=(-enable-kvm "${qemu_args[@]}")
+fi
+
+printf 'get-arch ISO smoke test: booting %s with %s disposable 64G disk(s).\n' "$iso" "$disk_count"
+printf 'All virtual disks are temporary and will be deleted when QEMU exits.\n'
+qemu-system-x86_64 "${qemu_args[@]}" "${disk_args[@]}"

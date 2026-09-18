@@ -20,6 +20,7 @@ with open(path, encoding='utf-8') as handle:
 assert config['kernels'] == ['linux'], config.get('kernels')
 assert config['network_config'] == {'type': 'nm'}, config.get('network_config')
 assert config['ntp'] is True, config.get('ntp')
+assert config['timezone'] == 'America/New_York', config.get('timezone')
 assert config['packages'] == ['git'], config.get('packages')
 assert config['profile_config'] == {
     'gfx_driver': None,
@@ -82,7 +83,6 @@ for unsafe_or_machine_specific in (
     'disk_config',
     'hostname',
     'locale_config',
-    'timezone',
 ):
     assert unsafe_or_machine_specific not in config, unsafe_or_machine_specific
 PY

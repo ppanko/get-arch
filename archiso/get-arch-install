@@ -3,11 +3,195 @@ set -euo pipefail
 
 readonly SENTINEL=/run/get-arch-install.started
 readonly PRESET=/root/get-arch.json
+readonly RUNTIME_PRESET=/run/get-arch.json
+readonly DISK_HELPER=/root/get-arch-disk-config
+config_path=$PRESET
 
 manual_retry() {
   printf '\nConnect the live environment if needed. For Wi-Fi, use: iwctl\n'
   printf 'Then start the installer manually with:\n'
   printf '  archinstall --config /root/get-arch.json\n'
+}
+
+network_ready() {
+  for _ in 1 2 3 4 5; do
+    if curl --silent --fail --head --connect-timeout 2 --max-time 3 https://archlinux.org/ >/dev/null; then
+      return 0
+    fi
+    sleep 1
+  done
+  return 1
+}
+
+wireless_devices() {
+  iwctl device list 2>/dev/null | awk '$NF == "station" { print $1 }'
+}
+
+ensure_network() {
+  if network_ready; then
+    return 0
+  fi
+
+  printf 'get-arch installer: network connectivity is not ready.\n'
+
+  if ! command -v iwctl >/dev/null 2>&1; then
+    printf 'get-arch installer: iwctl is unavailable; cannot guide Wi-Fi setup.\n' >&2
+    return 1
+  fi
+
+  local -a devices=()
+  mapfile -t devices < <(wireless_devices)
+
+  if (( ${#devices[@]} == 0 )); then
+    printf 'get-arch installer: no wireless station was detected by iwctl.\n' >&2
+    iwctl device list || true
+    return 1
+  fi
+
+  printf '\nWi-Fi is not connected.\n'
+  if (( ${#devices[@]} == 1 )); then
+    printf 'Detected wireless device: %s\n' "${devices[0]}"
+    printf '\nIn iwctl, run:\n'
+    printf '  station %s scan\n' "${devices[0]}"
+    printf '  station %s get-networks\n' "${devices[0]}"
+    printf '  station %s connect "NETWORK NAME"\n' "${devices[0]}"
+    printf '  exit\n\n'
+  else
+    printf 'Detected wireless devices:\n'
+    printf '  %s\n' "${devices[@]}"
+    printf '\nUse iwctl to choose a device, scan, and connect; then type exit.\n\n'
+  fi
+
+  iwctl || true
+
+  if network_ready; then
+    printf 'get-arch installer: network connectivity is ready.\n'
+    return 0
+  fi
+
+  printf 'get-arch installer: network is still unavailable.\n' >&2
+  return 1
+}
+
+list_disk_candidates() {
+  if ! command -v lsblk >/dev/null 2>&1 || ! command -v python >/dev/null 2>&1; then
+    return 0
+  fi
+
+  lsblk -J -b -o NAME,PATH,TYPE,RM,HOTPLUG,TRAN,SIZE,MODEL,MOUNTPOINTS 2>/dev/null | python -c '
+import json
+import sys
+
+try:
+    data = json.load(sys.stdin)
+except Exception:
+    raise SystemExit(0)
+
+
+def contains_live_mount(node):
+    for mountpoint in node.get("mountpoints") or []:
+        if isinstance(mountpoint, str) and (
+            mountpoint == "/run/archiso/bootmnt" or mountpoint.startswith("/run/archiso/")
+        ):
+            return True
+    return any(contains_live_mount(child) for child in (node.get("children") or []))
+
+
+def clean(value):
+    return str(value or "").replace("\t", " ").replace("\n", " ").strip()
+
+
+def human_size(value):
+    try:
+        size = float(value)
+    except (TypeError, ValueError):
+        return "unknown"
+    units = ["B", "KiB", "MiB", "GiB", "TiB", "PiB"]
+    unit = units[0]
+    for unit in units:
+        if size < 1024 or unit == units[-1]:
+            break
+        size /= 1024
+    return f"{size:.1f} {unit}"
+
+external_transports = {"usb", "iscsi", "fcoe", "fc"}
+
+for device in data.get("blockdevices") or []:
+    path = clean(device.get("path"))
+    dev_type = clean(device.get("type"))
+    removable = device.get("rm")
+    hotplug = device.get("hotplug")
+    transport = clean(device.get("tran")).lower()
+
+    if dev_type != "disk":
+        continue
+    if removable not in (False, 0, "0"):
+        continue
+    if hotplug not in (False, 0, "0", "false", "no"):
+        continue
+    if transport in external_transports:
+        continue
+    if path.startswith(("/dev/loop", "/dev/ram", "/dev/zram", "/dev/dm-", "/dev/nbd", "/dev/rbd")):
+        continue
+    if not path.startswith("/dev/"):
+        continue
+    if contains_live_mount(device):
+        continue
+
+    print("\t".join((path, human_size(device.get("size")), clean(device.get("model")) or "unknown", transport or "unknown")))
+'
+}
+
+prepare_runtime_config() {
+  config_path=$PRESET
+
+  local -a candidates=()
+  mapfile -t candidates < <(list_disk_candidates)
+
+  if (( ${#candidates[@]} != 1 )); then
+    if (( ${#candidates[@]} == 0 )); then
+      printf 'get-arch installer: no single eligible non-removable disk was resolved; disk setup remains interactive.\n'
+    else
+      printf 'get-arch installer: multiple eligible non-removable disks were found; disk setup remains interactive.\n'
+    fi
+    return 0
+  fi
+
+  local device size model transport
+  IFS=$'\t' read -r device size model transport <<< "${candidates[0]}"
+
+  printf '\nCandidate installation disk:\n'
+  printf '  Device:    %s\n' "$device"
+  printf '  Model:     %s\n' "${model:-unknown}"
+  printf '  Size:      %s\n' "$size"
+  printf '  Transport: %s\n' "$transport"
+  printf '\nExisting layout:\n'
+  lsblk "$device" || true
+  printf '\nThis only preconfigures Archinstall to erase this disk.\n'
+  printf 'Archinstall will still show its final review before writing anything.\n'
+  printf 'Type WIPE %s to preconfigure this disk for erasure: ' "$device"
+
+  local confirmation=
+  IFS= read -r confirmation || true
+  if [[ $confirmation != "WIPE $device" ]]; then
+    printf 'get-arch installer: disk automation skipped; choose the disk in Archinstall.\n'
+    return 0
+  fi
+
+  if [[ ! -f $DISK_HELPER ]]; then
+    printf 'get-arch installer: disk helper is unavailable; disk setup remains interactive.\n' >&2
+    return 0
+  fi
+
+  rm -f -- "$RUNTIME_PRESET"
+  if python "$DISK_HELPER" --device "$device" --base-config "$PRESET" --output "$RUNTIME_PRESET" \
+    && [[ -s $RUNTIME_PRESET ]]; then
+    config_path=$RUNTIME_PRESET
+    printf 'get-arch installer: Archinstall disk layout preconfigured for %s.\n' "$device"
+  else
+    printf 'get-arch installer: disk preconfiguration failed; disk setup remains interactive.\n' >&2
+    rm -f -- "$RUNTIME_PRESET"
+  fi
 }
 
 if [[ $(tty) != /dev/tty1 ]]; then
@@ -27,29 +211,25 @@ if ! command -v archinstall >/dev/null 2>&1; then
 fi
 
 if ! command -v curl >/dev/null 2>&1; then
-  printf 'get-arch installer: curl is unavailable; automatic network readiness cannot be checked.\n' >&2
+  printf 'get-arch installer: curl is unavailable; network readiness cannot be checked.\n' >&2
   manual_retry
   exit 0
 fi
 
-online=false
-# shellcheck disable=SC2034 # Fixed attempt count keeps the readiness wait bounded.
-for attempt in 1 2 3 4 5; do
-  if curl --silent --fail --head --connect-timeout 2 --max-time 3 https://archlinux.org/ >/dev/null; then
-    online=true
-    break
-  fi
-  sleep 1
-done
-
-if [[ $online != true ]]; then
-  printf 'get-arch installer: network connectivity is not ready; automatic launch skipped.\n'
+if ! ensure_network; then
   manual_retry
   exit 0
 fi
 
-printf 'get-arch installer: starting guided Archinstall.\n'
-if archinstall --config "$PRESET"; then
+prepare_runtime_config
+
+printf '\nIn Archinstall, create one normal user and grant it sudo access.\n'
+printf 'Choose the username, hostname, and password you want for this machine.\n'
+printf 'Encryption remains your choice in Archinstall.\n'
+printf 'Press Enter to continue to Archinstall: '
+IFS= read -r || true
+printf '\nget-arch installer: starting guided Archinstall.\n'
+if archinstall --config "$config_path"; then
   printf 'get-arch installer: Archinstall exited successfully.\n'
 else
   status=$?
