@@ -39,7 +39,7 @@ main
 
 calls=$(<"$CALLS_FILE")
 assert_contains "$calls" 'sudo:-v' 'first-login completion authenticates once up front'
-assert_contains "$calls" 'paru:-S --needed --noconfirm -- foo bar' 'first-login completion installs the recorded AUR set'
+assert_contains "$calls" 'paru:-S --needed --noconfirm --skipreview --sudoloop -- foo bar' 'first-login completion installs the recorded AUR set without review menus'
 [[ ! -e $PACKAGE_FILE ]] || { echo 'FAIL: successful completion kept pending package state' >&2; exit 1; }
 [[ ! -e $AUTOSTART_FILE ]] || { echo 'FAIL: successful completion kept autostart entry' >&2; exit 1; }
 
