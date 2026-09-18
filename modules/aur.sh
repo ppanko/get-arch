@@ -33,13 +33,60 @@ install_aur_packages() {
     paru -S --needed --noconfirm -- "${packages[@]}"
 }
 
-defer_aur_packages_install_mode() {
+aur_completion_user_home() {
+  local passwd_file home
+  passwd_file=$(system_path /etc/passwd)
+  home=$(awk -F: -v username="$USERNAME" '$1 == username { print $6; exit }' "$passwd_file")
+  if [[ -z $home || $home != /* ]]; then
+    die "Could not determine the home directory for installed user '$USERNAME'."
+    return 1
+  fi
+  printf '%s\n' "$home"
+}
+
+schedule_aur_completion_install_mode() {
   local packages=()
+  local home uid gid state_dir autostart_dir helper_path package_tmp desktop_tmp
+
   mapfile -t packages < <(load_aur_packages)
   if ((${#packages[@]} == 0)); then
     log_skip 'No AUR packages declared'
     return 0
   fi
 
-  log_info "AUR packages deferred until first boot: ${packages[*]}"
+  ensure_packages base-devel git rust gnome-terminal
+
+  home=$(aur_completion_user_home)
+  uid=$(id -u "$USERNAME")
+  gid=$(id -g "$USERNAME")
+  state_dir=$(system_path "$home/.local/state/get-arch")
+  autostart_dir=$(system_path "$home/.config/autostart")
+  helper_path=$(system_path /usr/local/lib/get-arch/complete-aur)
+
+  package_tmp=$(mktemp)
+  desktop_tmp=$(mktemp)
+  printf '%s\n' "${packages[@]}" >"$package_tmp"
+  cat >"$desktop_tmp" <<'DESKTOP'
+[Desktop Entry]
+Type=Application
+Name=Finish get-arch installation
+Comment=Install deferred AUR packages
+Exec=/usr/bin/gnome-terminal --wait --title=get-arch-AUR -- /usr/bin/bash /usr/local/lib/get-arch/complete-aur
+OnlyShowIn=GNOME;
+X-GNOME-Autostart-enabled=true
+NoDisplay=true
+DESKTOP
+
+  run_mutation 'Install first-login AUR completion helper' \
+    install -Dm0755 "$REPO_ROOT/scripts/complete-aur" "$helper_path"
+  run_mutation 'Prepare first-login AUR completion directories' \
+    install -d -m0700 -o "$uid" -g "$gid" "$state_dir" "$autostart_dir"
+  run_mutation 'Record pending AUR package set' \
+    install -m0600 -o "$uid" -g "$gid" "$package_tmp" "$state_dir/aur-packages"
+  run_mutation 'Schedule first-login AUR completion' \
+    install -m0644 -o "$uid" -g "$gid" "$desktop_tmp" \
+    "$autostart_dir/get-arch-aur-completion.desktop"
+
+  rm -f "$package_tmp" "$desktop_tmp"
+  log_info "AUR completion scheduled for the first GNOME login of $USERNAME: ${packages[*]}"
 }
