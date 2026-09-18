@@ -88,7 +88,7 @@ run_workstation() {
   configure_ssh
   install_declared_official_packages
   if (( INSTALL_MODE )); then
-    defer_aur_packages_install_mode
+    schedule_aur_completion_install_mode
   else
     ensure_aur_helper
     install_aur_packages
