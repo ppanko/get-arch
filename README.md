@@ -12,7 +12,7 @@ archinstall --config-url https://raw.githubusercontent.com/ppanko/get-arch/maste
 
 The preset supplies only portable workstation policy: the **Minimal** profile, the `linux` kernel, **NetworkManager**, NTP, and Git. It deliberately does not specify disks, partitioning, encryption, bootloader, credentials, hostname, locale, or timezone. Complete those machine-specific choices in the guided installer. Archinstall then installs the base system and runs the pinned `get-arch --install-mode` revision inside the target before the first reboot.
 
-The intended flow is: Arch USB/ISO → guided Archinstall → base system → pinned `get-arch --install-mode` provisioning → one reboot → GNOME workstation.
+The intended flow is: Arch USB/ISO → guided Archinstall → base system → pinned `get-arch --install-mode` provisioning → one reboot → first GNOME login completes any declared AUR packages → workstation.
 
 The same preset can be used from a local clone with:
 
@@ -83,13 +83,20 @@ perform the normal full-system upgrade. It installs the official workstation
 and hardware packages and enables required services for first boot without
 starting them.
 
-AUR work is deliberately deferred in installation mode. Archinstall 4.4 does
-not provide a usable interactive stdin path for password prompts from
-`custom_commands`, so install mode never attempts `sudo`, `makepkg`, `paru`, or
-another target-user AUR session. Declared AUR packages are reported in the log
-as deferred and can be completed interactively after first boot without
-another reboot. Normal `./get-arch` mode retains the existing interactive AUR
-behavior.
+Archinstall's `custom_commands` path cannot safely host the interactive
+password prompts required by AUR tooling, so `--install-mode` does not build
+AUR packages inside the Archinstall chroot. Instead, it stages the AUR build
+prerequisites and installs a one-shot continuation for the existing
+Archinstall-created user.
+
+On that user's first GNOME login, GNOME Terminal opens automatically and asks
+for administrator authentication. The continuation bootstraps `paru`, installs
+the exact package set declared in `packages/aur`, and then removes its own
+autostart entry. It never asks for a username or hostname and never creates
+another account. If AUR completion fails, its pending state is retained and it
+retries on the next GNOME login; output is also saved under
+`~/.local/state/get-arch/aur-completion.log`. No passwordless sudo policy is
+introduced. Normal `./get-arch` mode retains the interactive maintenance path.
 
 For a non-destructive inspection from inside the target chroot, add `--check`:
 
