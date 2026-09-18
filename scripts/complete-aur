@@ -96,7 +96,7 @@ main() {
   bootstrap_paru
 
   log 'Installing pending AUR packages...'
-  paru -S --needed --noconfirm -- "${packages[@]}"
+  paru -S --needed --noconfirm --skipreview --sudoloop -- "${packages[@]}"
 
   rm -f "$PACKAGE_FILE" "$AUTOSTART_FILE"
   trap - ERR
