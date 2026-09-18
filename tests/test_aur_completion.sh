@@ -25,7 +25,7 @@ cat >"$tmp/bin/paru" <<'SH'
 printf 'paru:%s\n' "$*" >>"$CALLS_FILE"
 SH
 
-chmod +x "$tmp/bin/sudo" "$tmp/bin/paru"
+chmod +x "$tmp/bin/curl" "$tmp/bin/sudo" "$tmp/bin/paru"
 export PATH="$tmp/bin:$PATH"
 
 cat >"$PACKAGE_FILE" <<'PKGS'
@@ -44,6 +44,7 @@ assert_contains "$calls" 'paru:-S --needed --noconfirm --skipreview --sudoloop -
 [[ ! -e $AUTOSTART_FILE ]] || { echo 'FAIL: successful completion kept autostart entry' >&2; exit 1; }
 
 rm -f "$tmp/bin/paru"
+hash -r
 : >"$CALLS_FILE"
 cat >"$tmp/bin/git" <<'SH'
 #!/usr/bin/env bash
