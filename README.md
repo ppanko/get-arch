@@ -1,6 +1,6 @@
 # get-arch
 
-`get-arch` is a small Bash configurator for an Arch Linux GNOME workstation. It is intentionally the second stage of installation: `archinstall` owns disks, filesystems, encryption, the bootloader, and the base system; `get-arch` owns workstation configuration from inside the newly installed target and remains rerunnable after first boot.
+`get-arch` is a small Bash configurator for an Arch Linux GNOME workstation. It is intentionally the second stage of installation: `archinstall` performs disks, filesystems, encryption, the bootloader, and the base-system installation; `get-arch` owns workstation configuration from inside the newly installed target and remains rerunnable after first boot. The custom ISO adds a thin live-environment guide that can prepopulate a confirmed disk layout without performing disk writes itself.
 
 ## 1. Install Arch
 
@@ -10,7 +10,7 @@ From the Arch ISO, start the guided installer with the repository's reusable sta
 archinstall --config-url https://raw.githubusercontent.com/ppanko/get-arch/master/archinstall/get-arch.json
 ```
 
-The preset supplies only portable workstation policy: the **Minimal** profile, the `linux` kernel, **NetworkManager**, NTP, and Git. It deliberately does not specify disks, partitioning, encryption, bootloader, credentials, hostname, locale, or timezone. Complete those machine-specific choices in the guided installer. Archinstall then installs the base system and runs the pinned `get-arch --install-mode` revision inside the target before the first reboot.
+The canonical preset supplies the **Minimal** profile, the `linux` kernel, **NetworkManager**, NTP, Git, and an `America/New_York` timezone default. It deliberately does not contain a fixed disk, encryption choice, bootloader choice, credentials, hostname, or locale. The timezone remains editable in the guided installer; seeding it prevents a fresh install from silently retaining an implicit UTC default. Complete the other machine-specific choices in Archinstall. Archinstall then installs the base system and runs the pinned `get-arch --install-mode` revision inside the target before the first reboot.
 
 The intended flow is: Arch USB/ISO → guided Archinstall → base system → pinned `get-arch --install-mode` provisioning → one reboot → first GNOME login completes any declared AUR packages → workstation.
 
@@ -117,32 +117,100 @@ sudo pacman -S --needed archiso
 ```
 
 The generated ISO is written to `out/` by default. The builder itself does not
-use `sudo`, modify `/usr/share/archiso`, select disks, or flash media. It copies
-the current official `releng` profile into disposable build state and overlays
-the canonical `archinstall/get-arch.json` preset. AUR package builds remain
-deferred only until the automatic first-login continuation can run in a real interactive terminal.
+use `sudo`, modify `/usr/share/archiso`, select a USB flash target, or flash
+media. It copies the current official `releng` profile into disposable build
+state and overlays the canonical Archinstall preset plus the small live
+installer launcher and disk-layout helper. AUR package builds remain deferred
+only until the automatic first-login continuation can run in a real interactive terminal.
+
+### Guided custom-ISO flow
+
+The custom ISO keeps the install interactive while removing the repetitive
+parts validated during the physical-install test:
+
+```text
+boot USB
+  -> connect Wi-Fi through guided iwctl when needed
+  -> confirm the one eligible non-removable disk if automatic preselection is offered
+  -> Archinstall opens with an ext4, no-separate-/home, no-LVM layout prepopulated when eligible
+  -> choose encryption interactively
+  -> keep or change the prefilled America/New_York timezone
+  -> create one normal sudo-capable user, hostname, and password interactively
+  -> review the complete Archinstall configuration and choose Install
+  -> get-arch provisions the workstation and schedules first-login AUR completion when needed
+  -> reboot
+  -> first GNOME login completes any declared AUR packages
+```
+
+Disk preselection is deliberately conservative. USB-transport storage,
+hot-pluggable storage, known remote transports, removable storage, the live
+installer medium, and pseudo devices are not automatic targets. If zero or
+multiple eligible non-removable disks remain, the launcher does not choose
+between them and Archinstall presents its normal disk selection. Even with one
+candidate, the launcher shows its path, model, size, transport, and existing
+layout and requires the exact phrase `WIPE <device-path>` before it generates a
+temporary Archinstall disk config. That confirmation only prepopulates
+Archinstall; it does not write the disk. Archinstall's own final review and
+**Install** confirmation remain required.
+
+The generated disk configuration comes from the Archinstall library shipped in
+the running ISO. It requests Archinstall's own best-effort single-disk layout
+with ext4 and no separate `/home`. The helper does not implement its own
+partition geometry and does not configure LVM or encryption. If disk detection
+is ambiguous, confirmation is declined, or the Archinstall helper API is
+incompatible, the launcher falls back to the canonical preset and disk setup
+remains fully interactive.
+
+When the live environment is offline and a wireless station is detected, the
+launcher prints device-specific `iwctl` commands and opens `iwctl` for the user.
+`iwctl` handles SSID selection and the Wi-Fi passphrase directly; `get-arch`
+never reads or stores the network credential. On exit, connectivity is checked
+again and the installer continues automatically when the connection works.
+
+Account data is likewise never collected by the launcher. Immediately before
+Archinstall opens, it reminds the user to create one normal user with sudo
+access and to choose the username, hostname, and password in Archinstall, then
+waits for Enter so the guidance cannot disappear before the full-screen UI
+starts. Encryption also remains an explicit Archinstall choice. The installer preselects `America/New_York` for timezone, but Archinstall's timezone control remains available if the machine should use another zone.
 
 ### Smoke-test before flashing
 
-Install the QEMU prerequisites and boot the generated image with Archiso's
-`run_archiso` helper:
+Install the QEMU prerequisites and boot the generated image with disposable
+virtual installation disks:
 
 ```bash
 sudo pacman -S --needed qemu-desktop edk2-ovmf
-run_archiso -u -i out/<generated-iso-name>.iso
+bash scripts/smoke-iso out/<generated-iso-name>.iso 1
+```
+
+The smoke runner boots the ISO with UEFI and creates temporary 64 GiB QCOW2
+installation disks under a disposable directory. They are removed when QEMU
+exits. Archiso's normal `run_archiso` helper is still useful for a basic boot
+check, but it does not attach an installation disk and therefore cannot exercise
+the disk-preselection path.
+
+After the one-disk case, run the ambiguity case separately:
+
+```bash
+bash scripts/smoke-iso out/<generated-iso-name>.iso 2
 ```
 
 Confirm all of the following before approving any USB flash:
 
-1. tty1 autologin occurs.
-2. With QEMU networking available, Archinstall launches once using `/root/get-arch.json`.
-3. Cancelling or exiting Archinstall returns to the live root shell.
-4. A new tty1 login shell does not relaunch Archinstall automatically.
-5. `archinstall --config /root/get-arch.json` remains available for a deliberate retry.
-6. No USB is flashed until this smoke test passes.
+1. tty1 autologin occurs and the launcher starts once.
+2. An offline live environment is guided into `iwctl`; after a successful connection, the same launcher invocation continues automatically.
+3. With exactly one eligible non-removable disk, its path/model/size/transport are shown and the exact `WIPE <device>` phrase is required before preselection.
+4. The resulting Archinstall layout is ext4 with no separate `/home` and no LVM, while encryption remains selectable.
+5. With two eligible disks, no disk is preselected and Archinstall presents normal disk selection.
+6. Hot-pluggable, USB/removable, live-media, and known remote-transport storage are never automatically selected.
+7. The account reminder remains visible until Enter is pressed; account creation, hostname, password, encryption, and the final **Install** confirmation remain interactive, and the prefilled `America/New_York` timezone can still be changed.
+8. Cancelling or exiting Archinstall returns to the live root shell.
+9. A new tty1 login shell does not relaunch Archinstall automatically.
+10. `archinstall --config /root/get-arch.json` remains available for a deliberate recovery retry.
+11. No USB is flashed until these smoke tests pass.
 
-The ISO builder never flashes USB media; flashing is a separate, explicitly
-confirmed operation outside this workflow.
+The ISO builder and smoke runner never flash USB media; flashing is a separate,
+explicitly confirmed operation outside this workflow.
 
 ## Package maintenance
 

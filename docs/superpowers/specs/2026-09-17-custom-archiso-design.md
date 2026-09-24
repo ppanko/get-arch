@@ -11,7 +11,7 @@ boot custom USB
   -> root autologin on tty1
   -> launcher checks live-network readiness
   -> launch Archinstall once with /root/get-arch.json when online
-  -> user chooses disks, partitioning, encryption, bootloader, identity, locale, timezone
+  -> user chooses disks, partitioning, encryption, bootloader, identity, and locale; timezone is prefilled as America/New_York but remains editable
   -> Archinstall installs the base system
   -> preset custom_commands runs pinned get-arch --install-mode in the target
   -> Archinstall exits back to the live shell
@@ -21,7 +21,7 @@ boot custom USB
 
 If the live environment is not online after a bounded startup wait, the launcher prints concise Wi-Fi guidance and returns to the shell instead of hanging or attempting to manage credentials itself. The user can connect with the normal Arch ISO tooling and then manually run `archinstall --config /root/get-arch.json`.
 
-AUR packages remain deferred until an interactive session after first boot.
+AUR package builds remain outside Archinstall and are completed automatically in an interactive terminal at the installed user's first GNOME login.
 
 ## Design choice
 
@@ -107,11 +107,12 @@ The embedded preset remains responsible only for portable policy:
 - NetworkManager
 - NTP
 - Git
+- `America/New_York` as an editable timezone default
 - the pinned, retry-safe `get-arch --install-mode` custom command already merged into the preset
 
-It must continue to omit disks, partitioning, encryption, bootloader configuration, credentials, hostname, locale, and timezone.
+It must continue to omit disks, partitioning, encryption, bootloader configuration, credentials, hostname, and locale. The canonical preset seeds `America/New_York` as the timezone default while leaving Archinstall's timezone control editable.
 
-The ISO layer does not add defaults for those fields.
+The ISO layer does not add additional machine-specific defaults.
 
 ## Failure and recovery
 

@@ -13,7 +13,7 @@
 ## Global Constraints
 
 - The canonical preset is `archinstall/get-arch.json`; do not create a second maintained preset.
-- The ISO layer must never select disks, partition, format, configure encryption, choose a bootloader, set credentials, set hostname/locale/timezone, or flash USB media.
+- The ISO layer must never select disks, partition, format, configure encryption, choose a bootloader, set credentials, force hostname/locale/timezone values, or flash USB media. The canonical preset may supply an editable timezone default.
 - The launcher acts only on `/dev/tty1`, launches automatically at most once per live boot, and returns to a normal root shell on success, cancellation, failure, or lack of network.
 - Network readiness must be bounded; no infinite wait and no Wi-Fi credential handling.
 - Preserve the official `releng` `.zlogin` automated-script behavior and fail closed if the expected upstream hook changes.
@@ -22,7 +22,7 @@
 - Do not require root solely for `mkarchiso`; current Archiso supports unprivileged builds through user namespaces.
 - Do not invoke `sudo` or other privilege escalation from `scripts/build-iso`.
 - A successful ISO build alone is not enough for flashing approval; the ISO must pass the documented QEMU smoke test first.
-- AUR packages remain deferred until the interactive first-boot session.
+- AUR package builds remain outside Archinstall and are completed by the automatic first-GNOME-login continuation.
 
 ---
 
@@ -398,7 +398,7 @@ sudo pacman -S --needed archiso
 ./scripts/build-iso
 ```
 
-Document that the default output is `out/`, the builder does not use `sudo`, modify `/usr/share/archiso`, select disks, or flash media, and that AUR packages remain deferred until after first boot.
+Document that the default output is `out/`, the builder does not use `sudo`, modify `/usr/share/archiso`, select disks, or flash media, and that AUR package builds are completed by the automatic first-login continuation rather than inside Archinstall.
 
 Add a `### Smoke-test before flashing` subsection:
 
@@ -547,6 +547,6 @@ Do not merge until the PR receives final adversarial review.
 
 ## Plan self-review
 
-- **Spec coverage:** launcher, network fallback, sentinel, canonical preset reuse, upstream `.zlogin` assertion, `archinstall` package assertion, version reporting, disposable build state, no privilege escalation, structural CI, real ISO inspection, QEMU smoke test, recovery shell, retry path, AUR deferral, and USB-flashing boundary are all assigned to explicit tasks.
+- **Spec coverage:** launcher, network fallback, sentinel, canonical preset reuse, upstream `.zlogin` assertion, `archinstall` package assertion, version reporting, disposable build state, no privilege escalation, structural CI, real ISO inspection, QEMU smoke test, recovery shell, retry path, first-login AUR continuation boundary, and USB-flashing boundary are all assigned to explicit tasks.
 - **Placeholder scan:** the only angle-bracket placeholder is the runtime-generated ISO filename in manual commands; the builder itself prints the exact path, so the executor substitutes that concrete output rather than inventing configuration.
 - **Interface consistency:** the launcher path is consistently `archiso/get-arch-install` in the repository and `/root/get-arch-install` in the live image; the preset path is consistently `archinstall/get-arch.json` in the repository and `/root/get-arch.json` in the live image; the build output defaults consistently to `out/`.
