@@ -45,6 +45,6 @@ configure_network() {
     die "Conflicting network manager $conflict is $conflict_state. Choose NetworkManager in archinstall, or migrate/disable the conflicting manager before rerunning get-arch."
     return 1
   fi
-  ensure_packages networkmanager
+  ensure_packages networkmanager wireless-regdb
   ensure_service_enabled NetworkManager.service
 }
