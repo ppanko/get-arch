@@ -48,7 +48,7 @@ source modules/desktop.sh
 source modules/ssh.sh
 
 CALLS=''; configure_network
-assert_eq $'packages:networkmanager\nenable:NetworkManager.service' "${CALLS%$'\n'}" 'network module contract'
+assert_eq $'packages:networkmanager wireless-regdb\nenable:NetworkManager.service' "${CALLS%$'\n'}" 'network module contract'
 
 CALLS=''; NETWORK_CONFLICT=systemd-networkd.service
 if configure_network; then echo 'FAIL: conflicting network manager accepted' >&2; exit 1; fi
@@ -72,7 +72,7 @@ if ! configure_network; then
   echo 'FAIL: install mode treated live-only network activity as a target conflict' >&2
   exit 1
 fi
-assert_eq $'packages:networkmanager\nenable:NetworkManager.service' "${CALLS%$'\n'}" 'install mode ignores live-only network activity'
+assert_eq $'packages:networkmanager wireless-regdb\nenable:NetworkManager.service' "${CALLS%$'\n'}" 'install mode ignores live-only network activity'
 network_systemctl_calls=$(<"$NETWORK_SYSTEMCTL_CALLS_FILE")
 assert_contains "$network_systemctl_calls" '--root=/ is-enabled --quiet systemd-networkd.service' 'install mode checks target enablement'
 [[ $network_systemctl_calls != *'is-active'* ]] || { echo 'FAIL: install mode queried live network activity' >&2; exit 1; }
@@ -86,10 +86,10 @@ NETWORK_ENABLED_CONFLICT=''
 INSTALL_MODE=0
 
 CALLS=''; configure_audio
-assert_eq 'packages:pipewire pipewire-alsa pipewire-pulse wireplumber' "${CALLS%$'\n'}" 'audio module contract'
+assert_eq 'packages:pipewire pipewire-alsa pipewire-pulse rtkit wireplumber' "${CALLS%$'\n'}" 'audio module contract'
 
 CALLS=''; configure_desktop
-assert_eq $'packages:gnome-shell gnome-session gnome-control-center gnome-settings-daemon gnome-keyring gdm nautilus\nenable:gdm.service' "${CALLS%$'\n'}" 'desktop module contract'
+assert_eq $'packages:evolution-data-server gnome-shell gnome-session gnome-control-center gnome-settings-daemon gnome-keyring gdm nautilus\nenable:gdm.service' "${CALLS%$'\n'}" 'desktop module contract'
 
 CALLS=''; configure_ssh
 assert_eq $'packages:openssh\nenable:sshd.service\nstart:sshd.service' "${CALLS%$'\n'}" 'ssh module contract'
