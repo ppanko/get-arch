@@ -1,6 +1,6 @@
 {
   "custom_commands": [
-    "set -euo pipefail\nrm -rf /opt/get-arch\ngit clone --no-checkout https://github.com/ppanko/get-arch.git /opt/get-arch\ngit -C /opt/get-arch checkout --detach e62b0a5502cee940660396722170d1a81d74c638\n/opt/get-arch/get-arch --install-mode"
+    "set -euo pipefail\nrm -rf /opt/get-arch\ngit clone --no-checkout https://github.com/ppanko/get-arch.git /opt/get-arch\ngit -C /opt/get-arch checkout --detach ea6bec3adfe4d07a1c5379feee4ad79081f79d75\n/opt/get-arch/get-arch --install-mode"
   ],
   "kernels": [
     "linux"
