@@ -72,6 +72,83 @@ ensure_ufw_default_policy() {
   run_ufw_mutation "Set UFW default $direction policy" default "$policy" "$direction"
 }
 
+ufw_config_enabled() {
+  local config
+  config=$(system_path /etc/ufw/ufw.conf)
+  [[ -r $config ]] || return 1
+  grep -Eq '^[[:space:]]*ENABLED=yes[[:space:]]*(#.*)?
+  local active_connection='' active_port=''
+
+  ensure_packages ufw
+
+  if (( ! INSTALL_MODE )); then
+    active_connection=$(detect_active_ssh_connection)
+  fi
+  if [[ -n $active_connection ]]; then
+    active_port=$(active_ssh_server_port "$active_connection") || return
+  fi
+
+  run_ufw_mutation 'Allow SSH through UFW' allow 22/tcp
+  if [[ -n $active_port && $active_port != 22 ]]; then
+    run_ufw_mutation "Allow active SSH port $active_port through UFW" allow "$active_port/tcp"
+  fi
+  ensure_ufw_default_policy incoming deny DEFAULT_INPUT_POLICY DROP
+  ensure_ufw_default_policy outgoing allow DEFAULT_OUTPUT_POLICY ACCEPT
+  ensure_ufw_active
+  ensure_service_enabled ufw.service
+}
+ "$config"
+}
+
+ufw_runtime_active() {
+  ufw status 2>/dev/null | grep -Eq '^Status:[[:space:]]+active[[:space:]]*
+  local active_connection='' active_port=''
+
+  ensure_packages ufw
+
+  if (( ! INSTALL_MODE )); then
+    active_connection=$(detect_active_ssh_connection)
+  fi
+  if [[ -n $active_connection ]]; then
+    active_port=$(active_ssh_server_port "$active_connection") || return
+  fi
+
+  run_ufw_mutation 'Allow SSH through UFW' allow 22/tcp
+  if [[ -n $active_port && $active_port != 22 ]]; then
+    run_ufw_mutation "Allow active SSH port $active_port through UFW" allow "$active_port/tcp"
+  fi
+  ensure_ufw_default_policy incoming deny DEFAULT_INPUT_POLICY DROP
+  ensure_ufw_default_policy outgoing allow DEFAULT_OUTPUT_POLICY ACCEPT
+  run_ufw_mutation 'Enable UFW' --force enable
+  ensure_service_enabled ufw.service
+  ensure_service_started ufw.service
+}
+
+}
+
+ensure_ufw_active() {
+  if (( CHECK_MODE )); then
+    run_ufw_mutation 'Enable UFW' --force enable
+    return
+  fi
+
+  if (( INSTALL_MODE )); then
+    if ufw_config_enabled; then
+      log_skip 'UFW already enabled in target configuration'
+      return
+    fi
+    run_ufw_mutation 'Enable UFW' --force enable
+    return
+  fi
+
+  if ufw_config_enabled && ufw_runtime_active; then
+    log_skip 'UFW already enabled and active'
+    return
+  fi
+
+  run_ufw_mutation 'Enable UFW' --force enable
+}
+
 configure_firewall() {
   local active_connection='' active_port=''
 
