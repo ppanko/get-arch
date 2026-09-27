@@ -48,6 +48,7 @@ source modules/bluetooth.sh
 source modules/hardware.sh
 source modules/desktop.sh
 source modules/printing.sh
+source modules/discovery.sh
 source modules/ssh.sh
 
 CALLS=''; configure_network
@@ -102,6 +103,9 @@ assert_eq $'packages:evolution-data-server gnome-shell gnome-session gnome-contr
 
 CALLS=''; configure_printing
 assert_eq $'packages:cups system-config-printer\nenable:cups.socket\nstart:cups.socket' "${CALLS%$'\n'}" 'printing package and socket-activation capability'
+
+CALLS=''; configure_discovery
+assert_eq $'packages:avahi gvfs-dnssd\nenable:avahi-daemon.service\nstart:avahi-daemon.service' "${CALLS%$'\n'}" 'Avahi DNS-SD discovery capability'
 
 CALLS=''; configure_ssh
 assert_eq $'packages:openssh\nenable:sshd.service\nstart:sshd.service' "${CALLS%$'\n'}" 'ssh module contract'
