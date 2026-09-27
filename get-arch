@@ -10,6 +10,7 @@ source "$REPO_ROOT/modules/network.sh"
 source "$REPO_ROOT/modules/audio.sh"
 source "$REPO_ROOT/modules/bluetooth.sh"
 source "$REPO_ROOT/modules/graphics.sh"
+source "$REPO_ROOT/modules/hardware.sh"
 source "$REPO_ROOT/modules/laptop.sh"
 source "$REPO_ROOT/modules/desktop.sh"
 source "$REPO_ROOT/modules/firewall.sh"
@@ -86,6 +87,7 @@ run_workstation() {
   configure_audio
   configure_bluetooth
   configure_graphics
+  configure_hardware_support
   configure_desktop
   configure_laptop
   configure_firewall
