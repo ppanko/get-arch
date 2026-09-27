@@ -28,7 +28,6 @@ systemctl() {
   local action=${1:-}
   shift || true
   [[ ${1:-} == --quiet ]] && shift
-  local unit=${1:-}
 
   case "$action" in
     is-enabled) (( BT_ENABLED )) ;;
