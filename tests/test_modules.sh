@@ -44,6 +44,7 @@ systemctl() {
 after_source_modules() { :; }
 source modules/network.sh
 source modules/audio.sh
+source modules/bluetooth.sh
 source modules/desktop.sh
 source modules/ssh.sh
 
@@ -87,6 +88,9 @@ INSTALL_MODE=0
 
 CALLS=''; configure_audio
 assert_eq 'packages:pipewire pipewire-alsa pipewire-pulse rtkit wireplumber' "${CALLS%$'\n'}" 'audio module contract'
+
+CALLS=''; configure_bluetooth
+assert_eq $'packages:bluez bluez-utils\nenable:bluetooth.service\nstart:bluetooth.service' "${CALLS%$'\n'}" 'Bluetooth package and service capability'
 
 CALLS=''; configure_desktop
 assert_eq $'packages:evolution-data-server gnome-shell gnome-session gnome-control-center gnome-settings-daemon gnome-keyring gdm nautilus\nenable:gdm.service' "${CALLS%$'\n'}" 'desktop module contract'
