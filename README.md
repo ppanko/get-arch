@@ -224,6 +224,10 @@ Confirm all of the following before approving any USB flash:
 The ISO builder and smoke runner never flash USB media; flashing is a separate,
 explicitly confirmed operation outside this workflow.
 
+## Known hardware investigations
+
+The MT7610U/mt76x0u USB Wi-Fi adapter has a known suspend/resume investigation path. See [docs/mt76x0u-suspend.md](docs/mt76x0u-suspend.md) before adding any driver reload, USB power, or NetworkManager-profile workaround.
+
 ## Package maintenance
 
 To compare the repository with a current workstation, capture explicitly installed official and foreign packages:
