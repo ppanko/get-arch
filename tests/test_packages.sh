@@ -64,16 +64,16 @@ for obsolete in pulseaudio flashplugin pakku xf86-input-synaptics exfat-utils fu
   fi
 done
 
-for module_owned in bluez bluez-utils cups fwupd gdm gnome-control-center gnome-keyring gnome-shell gvfs-afc gvfs-gphoto2 gvfs-mtp nautilus networkmanager openssh pipewire power-profiles-daemon smartmontools sudo system-config-printer ufw usbutils wireplumber; do
+for module_owned in avahi bluez bluez-utils cups fwupd gdm gnome-control-center gnome-keyring gnome-shell gvfs-afc gvfs-dnssd gvfs-gphoto2 gvfs-mtp nautilus networkmanager openssh pipewire power-profiles-daemon smartmontools sudo system-config-printer ufw usbutils wireplumber; do
   if grep -Fxq "$module_owned" <<< "$official"; then
     printf 'FAIL: module-owned package retained in declarative package set: %s\n' "$module_owned" >&2
     exit 1
   fi
 done
 
-for excluded in gvfs-dnssd gvfs-nfs; do
+for excluded in gvfs-nfs nss-mdns; do
   if grep -Fxq "$excluded" <<< "$all_packages"; then
-    printf 'FAIL: deliberately excluded hardware-support package declared: %s\n' "$excluded" >&2
+    printf 'FAIL: deliberately excluded baseline package declared: %s\n' "$excluded" >&2
     exit 1
   fi
 done

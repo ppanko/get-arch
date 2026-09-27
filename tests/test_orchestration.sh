@@ -22,6 +22,7 @@ configure_desktop() { record configure_desktop; }
 configure_printing() { record configure_printing; }
 configure_laptop() { record configure_laptop; }
 configure_firewall() { record configure_firewall; }
+configure_discovery() { record configure_discovery; }
 configure_ssh() { record configure_ssh; }
 install_declared_official_packages() { record install_declared_official_packages; }
 ensure_aur_helper() { record ensure_aur_helper; }
@@ -29,7 +30,7 @@ install_aur_packages() { record install_aur_packages; }
 schedule_aur_completion_install_mode() { record schedule_aur_completion_install_mode; }
 log_ok() { :; }
 
-expected=$'preflight\ninit_logging\ndetect_system\nprint_system_summary\nprompt_identity\nupgrade_system\nconfigure_identity\nconfigure_network\nconfigure_audio\nconfigure_bluetooth\nconfigure_graphics\nconfigure_hardware_support\nconfigure_desktop\nconfigure_printing\nconfigure_laptop\nconfigure_firewall\nconfigure_ssh\ninstall_declared_official_packages\nensure_aur_helper\ninstall_aur_packages'
+expected=$'preflight\ninit_logging\ndetect_system\nprint_system_summary\nprompt_identity\nupgrade_system\nconfigure_identity\nconfigure_network\nconfigure_audio\nconfigure_bluetooth\nconfigure_graphics\nconfigure_hardware_support\nconfigure_desktop\nconfigure_printing\nconfigure_laptop\nconfigure_firewall\nconfigure_discovery\nconfigure_ssh\ninstall_declared_official_packages\nensure_aur_helper\ninstall_aur_packages'
 
 CHECK_MODE=0; INSTALL_MODE=0
 run_workstation
@@ -39,7 +40,7 @@ CALLS=''; CHECK_MODE=1; INSTALL_MODE=0
 run_workstation
 assert_eq "$expected" "${CALLS%$'\n'}" 'check mode follows same planning path'
 
-install_expected=$'preflight\ninit_logging\ndetect_system\nprint_system_summary\nselect_installed_identity\nconfigure_identity\nconfigure_network\nconfigure_audio\nconfigure_bluetooth\nconfigure_graphics\nconfigure_hardware_support\nconfigure_desktop\nconfigure_printing\nconfigure_laptop\nconfigure_firewall\nconfigure_ssh\ninstall_declared_official_packages\nschedule_aur_completion_install_mode'
+install_expected=$'preflight\ninit_logging\ndetect_system\nprint_system_summary\nselect_installed_identity\nconfigure_identity\nconfigure_network\nconfigure_audio\nconfigure_bluetooth\nconfigure_graphics\nconfigure_hardware_support\nconfigure_desktop\nconfigure_printing\nconfigure_laptop\nconfigure_firewall\nconfigure_discovery\nconfigure_ssh\ninstall_declared_official_packages\nschedule_aur_completion_install_mode'
 
 CALLS=''; CHECK_MODE=0; INSTALL_MODE=1
 run_workstation
