@@ -81,27 +81,7 @@ INSTALL_MODE=1
 configure_bluetooth
 assert_contains "$CALLS" 'pacman:-S --needed --noconfirm -- bluez bluez-utils' 'install mode installs the Bluetooth package set'
 assert_contains "$CALLS" 'systemctl:--root=/ enable bluetooth.service' 'install mode enables Bluetooth in the target'
-if [[ $CALLS == *'is-active'* ||
-      $CALLS == *
-assert_eq 1 "$BT_ENABLED" 'install mode leaves target Bluetooth enabled'
-assert_eq 0 "$BT_ACTIVE" 'install mode does not start Bluetooth inside the installer'
-
-reset_fixture
-CHECK_MODE=1
-configure_bluetooth > "$tmp/check-output"
-check_output=$(<"$tmp/check-output")
-assert_contains "$check_output" '[CHECK] Install packages: bluez bluez-utils:' 'check mode reports Bluetooth packages'
-assert_contains "$check_output" '[CHECK] Enable bluetooth.service:' 'check mode reports Bluetooth enablement'
-assert_contains "$check_output" '[CHECK] Start bluetooth.service:' 'check mode reports Bluetooth startup'
-if [[ $CALLS == *'pacman:'* || $CALLS == *'systemctl:enable '* || $CALLS == *'systemctl:start '* ]]; then
-  printf 'FAIL: check mode mutated Bluetooth state\n' >&2
-  printf '%s' "$CALLS" >&2
-  exit 1
-fi
-assert_eq 0 "$BT_ENABLED" 'check mode leaves Bluetooth disabled'
-assert_eq 0 "$BT_ACTIVE" 'check mode leaves Bluetooth inactive'
-systemctl:enable bluetooth.service\n'* ||
-      $CALLS == *'systemctl:start bluetooth.service'* ]]; then
+if [[ $CALLS == *'is-active'* || $CALLS == *'systemctl:enable bluetooth.service'* || $CALLS == *'systemctl:start bluetooth.service'* ]]; then
   printf 'FAIL: install mode touched the live Bluetooth service\n' >&2
   printf '%s' "$CALLS" >&2
   exit 1
