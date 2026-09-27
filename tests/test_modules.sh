@@ -45,6 +45,7 @@ after_source_modules() { :; }
 source modules/network.sh
 source modules/audio.sh
 source modules/bluetooth.sh
+source modules/hardware.sh
 source modules/desktop.sh
 source modules/ssh.sh
 
@@ -91,6 +92,9 @@ assert_eq 'packages:pipewire pipewire-alsa pipewire-pulse rtkit wireplumber' "${
 
 CALLS=''; configure_bluetooth
 assert_eq $'packages:bluez bluez-utils\nenable:bluetooth.service\nstart:bluetooth.service' "${CALLS%$'\n'}" 'Bluetooth package and service capability'
+
+CALLS=''; configure_hardware_support
+assert_eq 'packages:gvfs-afc gvfs-gphoto2 gvfs-mtp fwupd smartmontools usbutils' "${CALLS%$'\n'}" 'hardware support package baseline'
 
 CALLS=''; configure_desktop
 assert_eq $'packages:evolution-data-server gnome-shell gnome-session gnome-control-center gnome-settings-daemon gnome-keyring gdm nautilus\nenable:gdm.service' "${CALLS%$'\n'}" 'desktop module contract'

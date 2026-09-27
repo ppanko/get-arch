@@ -269,7 +269,7 @@ if grep -Eq '^(pacman|ufw|unshare):|^systemctl:(enable|start)' "$FIREWALL_CALLS"
   exit 1
 fi
 
-if rg -n 'ufw[[:space:]].*(reset|delete)|ufw[[:space:]]+(reset|delete)' modules/firewall.sh >/dev/null; then
+if grep -En 'ufw[[:space:]].*(reset|delete)|ufw[[:space:]]+(reset|delete)' modules/firewall.sh >/dev/null; then
   printf 'FAIL: firewall module contains a destructive UFW operation\n' >&2
   exit 1
 fi

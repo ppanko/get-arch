@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 source tests/testlib.sh
+
+[[ -x ./get-arch ]] || { echo 'FAIL: get-arch must remain executable' >&2; exit 1; }
 source ./get-arch
 CHECK_MODE=0; VERBOSE=0; INSTALL_MODE=0; USERNAME=''
 parse_args --check --verbose
