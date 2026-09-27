@@ -198,6 +198,21 @@ assert_eq 1 "$(grep -Fxc 'ufw:--force enable' "$FIREWALL_CALLS")" 'runtime-inact
 assert_file_contains "$UFW_RUNTIME" 'active'
 
 reset_fixture
+printf 'ENABLED=yes\n' > "$UFW_CONFIG"
+printf 'active\n' > "$UFW_RUNTIME"
+SSH_CONNECTION='198.51.100.10 51000 192.0.2.10 22022'
+if configure_firewall; then
+  printf 'FAIL: active UFW default-policy change was allowed over SSH\n' >&2
+  exit 1
+fi
+assert_file_contains "$LOG_FILE" 'refusing to change firewall defaults over an active SSH session'
+if grep -Eq '^ufw:(allow|default|--force enable)|^systemctl:(enable|start)' "$FIREWALL_CALLS"; then
+  printf 'FAIL: firewall mutated before refusing a remote default-policy change\n' >&2
+  cat "$FIREWALL_CALLS" >&2
+  exit 1
+fi
+
+reset_fixture
 SSH_CONNECTION='198.51.100.10 51000 192.0.2.10 22022'
 configure_firewall
 assert_before 'ufw:allow 22022/tcp' 'ufw:--force enable' 'active SSH port is allowed before UFW is enabled'
