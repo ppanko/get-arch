@@ -44,7 +44,7 @@ validate_package_files
 official=$(load_official_packages)
 aur=$(load_aur_packages)
 
-for required in chromium dosfstools git r libreoffice-still vlc ufw openai-codex ttf-inconsolata ttf-nerd-fonts-symbols-mono; do
+for required in chromium dosfstools git r libreoffice-still vlc openai-codex ttf-inconsolata ttf-nerd-fonts-symbols-mono; do
   grep -Fxq "$required" <<< "$official" || {
     printf 'FAIL: canonical package set missing %s\n' "$required" >&2
     exit 1
@@ -64,7 +64,7 @@ for obsolete in pulseaudio flashplugin pakku xf86-input-synaptics exfat-utils fu
   fi
 done
 
-for module_owned in gdm gnome-control-center gnome-keyring gnome-shell nautilus networkmanager openssh pipewire wireplumber power-profiles-daemon sudo; do
+for module_owned in gdm gnome-control-center gnome-keyring gnome-shell nautilus networkmanager openssh pipewire ufw wireplumber power-profiles-daemon sudo; do
   if grep -Fxq "$module_owned" <<< "$official"; then
     printf 'FAIL: module-owned package retained in declarative package set: %s\n' "$module_owned" >&2
     exit 1

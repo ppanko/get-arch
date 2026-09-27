@@ -11,6 +11,7 @@ source "$REPO_ROOT/modules/audio.sh"
 source "$REPO_ROOT/modules/graphics.sh"
 source "$REPO_ROOT/modules/laptop.sh"
 source "$REPO_ROOT/modules/desktop.sh"
+source "$REPO_ROOT/modules/firewall.sh"
 source "$REPO_ROOT/modules/ssh.sh"
 source "$REPO_ROOT/modules/aur.sh"
 
@@ -85,6 +86,7 @@ run_workstation() {
   configure_graphics
   configure_desktop
   configure_laptop
+  configure_firewall
   configure_ssh
   install_declared_official_packages
   if (( INSTALL_MODE )); then

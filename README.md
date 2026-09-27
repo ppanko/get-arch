@@ -45,6 +45,10 @@ Hardware facts such as laptop/desktop status, GPU vendors, battery presence, boo
 
 The default policy configures a complete GNOME workstation, including GNOME/GDM, NetworkManager, PipeWire/WirePlumber, detected graphics support, laptop power support when applicable, SSH, the declared official package groups, and declared AUR packages through `paru`.
 
+UFW is the default firewall. The workstation policy denies unsolicited incoming traffic, allows outgoing traffic, and keeps SSH available on TCP port 22. When a normal-mode run occurs through SSH on another port, that active server port is allowed as well. SSH rules are established before the firewall is activated. Healthy reruns avoid re-enabling or reloading UFW and never reset UFW or delete administrator rules. If UFW is already active and a default-policy change would be required during an active SSH session, get-arch refuses that disruptive change and asks for a local rerun instead.
+
+During Archinstall provisioning, UFW commands run in an isolated network namespace while their configuration is written to the installed target. The target's `ufw.service` and `sshd.service` are enabled for first boot without starting either service or changing the live ISO firewall.
+
 Current NVIDIA hardware (Turing and newer) uses the current `nvidia-open` path. Older NVIDIA hardware is not assigned a driver automatically: `get-arch` stops with an actionable message so the appropriate legacy driver can be selected explicitly rather than installing an incompatible current stack.
 
 All package groups are installed by default. The files under `packages/` organize the workstation package set; they are not an interactive installer menu.
