@@ -118,6 +118,14 @@ configure_firewall() {
     active_port=$(active_ssh_server_port "$active_connection") || return
   fi
 
+  if (( ! CHECK_MODE && ! INSTALL_MODE )) && [[ -n $active_connection ]] && ufw_runtime_active; then
+    if ! ufw_default_policy_matches DEFAULT_INPUT_POLICY DROP ||
+       ! ufw_default_policy_matches DEFAULT_OUTPUT_POLICY ACCEPT; then
+      die 'UFW is active and its default policy differs from get-arch policy; refusing to change firewall defaults over an active SSH session. Rerun get-arch locally to apply the policy safely.'
+      return 1
+    fi
+  fi
+
   run_ufw_mutation 'Allow SSH through UFW' allow 22/tcp
   if [[ -n $active_port && $active_port != 22 ]]; then
     run_ufw_mutation "Allow active SSH port $active_port through UFW" allow "$active_port/tcp"
