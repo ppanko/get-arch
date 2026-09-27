@@ -47,6 +47,7 @@ source modules/audio.sh
 source modules/bluetooth.sh
 source modules/hardware.sh
 source modules/desktop.sh
+source modules/printing.sh
 source modules/ssh.sh
 
 CALLS=''; configure_network
@@ -98,6 +99,9 @@ assert_eq 'packages:gvfs-afc gvfs-gphoto2 gvfs-mtp fwupd smartmontools usbutils'
 
 CALLS=''; configure_desktop
 assert_eq $'packages:evolution-data-server gnome-shell gnome-session gnome-control-center gnome-settings-daemon gnome-keyring gdm nautilus\nenable:gdm.service' "${CALLS%$'\n'}" 'desktop module contract'
+
+CALLS=''; configure_printing
+assert_eq $'packages:cups system-config-printer\nenable:cups.socket\nstart:cups.socket' "${CALLS%$'\n'}" 'printing package and socket-activation capability'
 
 CALLS=''; configure_ssh
 assert_eq $'packages:openssh\nenable:sshd.service\nstart:sshd.service' "${CALLS%$'\n'}" 'ssh module contract'
