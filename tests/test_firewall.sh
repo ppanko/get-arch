@@ -17,6 +17,7 @@ export SYSTEMCTL_ENABLED="$tmp/enabled"
 export SYSTEMCTL_ACTIVE="$tmp/active"
 export UFW_CONFIG="$tmp/root/etc/ufw/ufw.conf"
 export UFW_DEFAULTS="$tmp/root/etc/default/ufw"
+export UFW_RUNTIME="$tmp/runtime"
 
 cat > "$tmp/bin/pacman" <<'PACMAN'
 #!/usr/bin/env bash
@@ -29,6 +30,13 @@ set -euo pipefail
 printf 'ufw:%s\n' "$*" >> "$FIREWALL_CALLS"
 [[ ${1:-} == --force ]] && shift
 case ${1:-} in
+  status)
+    if grep -Fxq active "$UFW_RUNTIME" 2>/dev/null; then
+      printf 'Status: active\n'
+    else
+      printf 'Status: inactive\n'
+    fi
+    ;;
   allow)
     rule="allow:${2:-}"
     grep -Fxq "$rule" "$FIREWALL_RULES" 2>/dev/null || printf '%s\n' "$rule" >> "$FIREWALL_RULES"
@@ -45,6 +53,7 @@ case ${1:-} in
     ;;
   enable)
     sed -i 's/^ENABLED=.*/ENABLED=yes/' "$UFW_CONFIG"
+    printf 'active\n' > "$UFW_RUNTIME"
     ;;
   reset|delete|disable|reload)
     printf 'FAIL: destructive UFW command: %s\n' "$*" >&2
@@ -105,6 +114,7 @@ reset_fixture() {
   : > "$FIREWALL_POLICIES"
   : > "$SYSTEMCTL_ENABLED"
   : > "$SYSTEMCTL_ACTIVE"
+  printf 'inactive\n' > "$UFW_RUNTIME"
   GET_ARCH_ROOT="$tmp/root"
   LOG_FILE="$tmp/log"
   : > "$LOG_FILE"
@@ -129,13 +139,16 @@ configure_firewall
 configure_ssh
 assert_before 'ufw:allow 22/tcp' 'ufw:default deny incoming' 'SSH is allowed before the incoming default is enforced'
 assert_before 'ufw:allow 22/tcp' 'ufw:--force enable' 'SSH is allowed before UFW is enabled'
-assert_before 'ufw:allow 22/tcp' 'systemctl:start ufw.service' 'SSH is allowed before firewall activation'
-assert_before 'systemctl:start ufw.service' 'systemctl:start sshd.service' 'firewall activation precedes SSH service activation'
+assert_before 'ufw:--force enable' 'systemctl:start sshd.service' 'firewall activation precedes SSH service activation'
+if grep -Fq 'systemctl:start ufw.service' "$FIREWALL_CALLS"; then
+  printf 'FAIL: fresh activation loaded UFW twice\n' >&2
+  cat "$FIREWALL_CALLS" >&2
+  exit 1
+fi
 assert_file_contains "$FIREWALL_POLICIES" 'incoming:deny'
 assert_file_contains "$FIREWALL_POLICIES" 'outgoing:allow'
 assert_file_contains "$FIREWALL_RULES" 'allow:22/tcp'
 assert_file_contains "$SYSTEMCTL_ENABLED" 'ufw.service'
-assert_file_contains "$SYSTEMCTL_ACTIVE" 'ufw.service'
 assert_file_contains "$SYSTEMCTL_ENABLED" 'sshd.service'
 assert_file_contains "$SYSTEMCTL_ACTIVE" 'sshd.service'
 assert_file_contains "$tmp/root/etc/ufw/ufw.conf" 'ENABLED=yes'
@@ -146,7 +159,8 @@ configure_firewall
 configure_ssh
 assert_file_contains "$FIREWALL_RULES" 'allow:8443/tcp'
 assert_eq 1 "$(grep -Fxc 'allow:22/tcp' "$FIREWALL_RULES")" 'rerun does not duplicate the SSH rule'
-if grep -Eq '^ufw:(reset|delete|disable|reload)|^systemctl:(enable|start)' "$FIREWALL_CALLS"; then
+assert_file_contains "$UFW_RUNTIME" 'active'
+if grep -Eq '^ufw:(--force enable|reset|delete|disable|reload)|^systemctl:(enable|start)' "$FIREWALL_CALLS"; then
   printf 'FAIL: rerun destructively reconfigured an active firewall\n' >&2
   cat "$FIREWALL_CALLS" >&2
   exit 1
@@ -158,9 +172,18 @@ if grep -Fq 'ufw:default ' "$FIREWALL_CALLS"; then
 fi
 
 reset_fixture
+printf 'ENABLED=yes\n' > "$UFW_CONFIG"
+printf 'DEFAULT_INPUT_POLICY="DROP"\nDEFAULT_OUTPUT_POLICY="ACCEPT"\n' > "$UFW_DEFAULTS"
+printf 'allow:8443/tcp\n' >> "$FIREWALL_RULES"
+configure_firewall
+assert_file_contains "$FIREWALL_RULES" 'allow:8443/tcp'
+assert_before 'ufw:allow 22/tcp' 'ufw:--force enable' 'runtime-inactive recovery protects SSH before activating UFW'
+assert_eq 1 "$(grep -Fxc 'ufw:--force enable' "$FIREWALL_CALLS")" 'runtime-inactive recovery activates UFW exactly once'
+assert_file_contains "$UFW_RUNTIME" 'active'
+
+reset_fixture
 SSH_CONNECTION='198.51.100.10 51000 192.0.2.10 22022'
 configure_firewall
-assert_before 'ufw:allow 22022/tcp' 'systemctl:start ufw.service' 'active SSH port is allowed before firewall activation'
 assert_before 'ufw:allow 22022/tcp' 'ufw:--force enable' 'active SSH port is allowed before UFW is enabled'
 assert_file_contains "$FIREWALL_RULES" 'allow:22022/tcp'
 if grep -Eq '^ufw:(reset|delete|disable|reload)|^systemctl:stop' "$FIREWALL_CALLS"; then
@@ -174,7 +197,7 @@ if configure_firewall; then
   printf 'FAIL: malformed active SSH metadata was accepted\n' >&2
   exit 1
 fi
-if grep -Fq 'systemctl:start ufw.service' "$FIREWALL_CALLS"; then
+if grep -Fq 'ufw:--force enable' "$FIREWALL_CALLS"; then
   printf 'FAIL: firewall activated without validating the active SSH port\n' >&2
   exit 1
 fi
@@ -206,7 +229,7 @@ assert_contains "$check_output" '[CHECK] Allow SSH through UFW:' 'check mode rep
 assert_contains "$check_output" '[CHECK] Set UFW default incoming policy:' 'check mode reports the incoming policy'
 assert_contains "$check_output" '[CHECK] Set UFW default outgoing policy:' 'check mode reports the outgoing policy'
 assert_contains "$check_output" '[CHECK] Enable UFW:' 'check mode reports firewall activation policy'
-assert_contains "$check_output" '[CHECK] Start ufw.service:' 'check mode reports normal-mode firewall start'
+assert_contains "$check_output" '[CHECK] Enable ufw.service:' 'check mode reports boot-time firewall enablement'
 assert_eq 'ENABLED=no' "$(cat "$tmp/root/etc/ufw/ufw.conf")" 'check mode leaves UFW configuration unchanged'
 assert_eq 'allow:8443/tcp' "$(cat "$FIREWALL_RULES")" 'check mode preserves existing rules without mutation'
 if grep -Eq '^(pacman|ufw|unshare):|^systemctl:(enable|start)' "$FIREWALL_CALLS"; then
