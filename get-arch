@@ -8,6 +8,7 @@ source "$REPO_ROOT/lib/packages.sh"
 source "$REPO_ROOT/modules/identity.sh"
 source "$REPO_ROOT/modules/network.sh"
 source "$REPO_ROOT/modules/audio.sh"
+source "$REPO_ROOT/modules/bluetooth.sh"
 source "$REPO_ROOT/modules/graphics.sh"
 source "$REPO_ROOT/modules/laptop.sh"
 source "$REPO_ROOT/modules/desktop.sh"
@@ -83,6 +84,7 @@ run_workstation() {
   configure_identity
   configure_network
   configure_audio
+  configure_bluetooth
   configure_graphics
   configure_desktop
   configure_laptop

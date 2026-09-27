@@ -15,6 +15,7 @@ upgrade_system() { record upgrade_system; }
 configure_identity() { record configure_identity; }
 configure_network() { record configure_network; }
 configure_audio() { record configure_audio; }
+configure_bluetooth() { record configure_bluetooth; }
 configure_graphics() { record configure_graphics; }
 configure_desktop() { record configure_desktop; }
 configure_laptop() { record configure_laptop; }
@@ -26,7 +27,7 @@ install_aur_packages() { record install_aur_packages; }
 schedule_aur_completion_install_mode() { record schedule_aur_completion_install_mode; }
 log_ok() { :; }
 
-expected=$'preflight\ninit_logging\ndetect_system\nprint_system_summary\nprompt_identity\nupgrade_system\nconfigure_identity\nconfigure_network\nconfigure_audio\nconfigure_graphics\nconfigure_desktop\nconfigure_laptop\nconfigure_firewall\nconfigure_ssh\ninstall_declared_official_packages\nensure_aur_helper\ninstall_aur_packages'
+expected=$'preflight\ninit_logging\ndetect_system\nprint_system_summary\nprompt_identity\nupgrade_system\nconfigure_identity\nconfigure_network\nconfigure_audio\nconfigure_bluetooth\nconfigure_graphics\nconfigure_desktop\nconfigure_laptop\nconfigure_firewall\nconfigure_ssh\ninstall_declared_official_packages\nensure_aur_helper\ninstall_aur_packages'
 
 CHECK_MODE=0; INSTALL_MODE=0
 run_workstation
@@ -36,7 +37,7 @@ CALLS=''; CHECK_MODE=1; INSTALL_MODE=0
 run_workstation
 assert_eq "$expected" "${CALLS%$'\n'}" 'check mode follows same planning path'
 
-install_expected=$'preflight\ninit_logging\ndetect_system\nprint_system_summary\nselect_installed_identity\nconfigure_identity\nconfigure_network\nconfigure_audio\nconfigure_graphics\nconfigure_desktop\nconfigure_laptop\nconfigure_firewall\nconfigure_ssh\ninstall_declared_official_packages\nschedule_aur_completion_install_mode'
+install_expected=$'preflight\ninit_logging\ndetect_system\nprint_system_summary\nselect_installed_identity\nconfigure_identity\nconfigure_network\nconfigure_audio\nconfigure_bluetooth\nconfigure_graphics\nconfigure_desktop\nconfigure_laptop\nconfigure_firewall\nconfigure_ssh\ninstall_declared_official_packages\nschedule_aur_completion_install_mode'
 
 CALLS=''; CHECK_MODE=0; INSTALL_MODE=1
 run_workstation

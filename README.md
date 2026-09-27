@@ -43,7 +43,9 @@ Hardware facts such as laptop/desktop status, GPU vendors, battery presence, boo
 /opt/get-arch/get-arch
 ```
 
-The default policy configures a complete GNOME workstation, including GNOME/GDM, NetworkManager, PipeWire/WirePlumber, detected graphics support, laptop power support when applicable, SSH, the declared official package groups, and declared AUR packages through `paru`.
+The default policy configures a complete GNOME workstation, including GNOME/GDM, NetworkManager, PipeWire/WirePlumber, Bluetooth/BlueZ, detected graphics support, laptop power support when applicable, SSH, the declared official package groups, and declared AUR packages through `paru`.
+
+Bluetooth is a default workstation capability. `get-arch` installs BlueZ and its command-line utilities, enables `bluetooth.service`, and starts it during normal maintenance runs. On systems without Bluetooth hardware, BlueZ's systemd unit condition leaves the daemon inactive without making provisioning fail; install mode enables the service for first boot without starting it inside the installer.
 
 UFW is the default firewall. The workstation policy denies unsolicited incoming traffic, allows outgoing traffic, and keeps SSH available on TCP port 22. When a normal-mode run occurs through SSH on another port, that active server port is allowed as well. SSH rules are established before the firewall is activated. Healthy reruns avoid re-enabling or reloading UFW and never reset UFW or delete administrator rules. If UFW is already active and a default-policy change would be required during an active SSH session, get-arch refuses that disruptive change and asks for a local rerun instead.
 
