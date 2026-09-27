@@ -173,6 +173,22 @@ fi
 
 reset_fixture
 printf 'ENABLED=yes\n' > "$UFW_CONFIG"
+printf 'active\n' > "$UFW_RUNTIME"
+printf 'allow:8443/tcp\n' >> "$FIREWALL_RULES"
+if configure_firewall 2>"$tmp/remote-policy.err"; then
+  printf 'FAIL: active SSH session accepted a disruptive UFW default-policy change\n' >&2
+  exit 1
+fi
+assert_file_contains "$tmp/remote-policy.err" 'refusing to change firewall defaults over an active SSH session'
+assert_file_contains "$FIREWALL_RULES" 'allow:8443/tcp'
+if grep -Eq '^ufw:(allow|default|--force enable|reset|delete|disable|reload)|^systemctl:(enable|start)' "$FIREWALL_CALLS"; then
+  printf 'FAIL: remote policy refusal mutated firewall state\n' >&2
+  cat "$FIREWALL_CALLS" >&2
+  exit 1
+fi
+
+reset_fixture
+printf 'ENABLED=yes\n' > "$UFW_CONFIG"
 printf 'DEFAULT_INPUT_POLICY="DROP"\nDEFAULT_OUTPUT_POLICY="ACCEPT"\n' > "$UFW_DEFAULTS"
 printf 'allow:8443/tcp\n' >> "$FIREWALL_RULES"
 configure_firewall
