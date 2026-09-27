@@ -201,11 +201,11 @@ reset_fixture
 printf 'ENABLED=yes\n' > "$UFW_CONFIG"
 printf 'active\n' > "$UFW_RUNTIME"
 SSH_CONNECTION='198.51.100.10 51000 192.0.2.10 22022'
-if configure_firewall; then
+if configure_firewall 2>"$tmp/remote-policy-nonstandard.err"; then
   printf 'FAIL: active UFW default-policy change was allowed over SSH\n' >&2
   exit 1
 fi
-assert_file_contains "$LOG_FILE" 'refusing to change firewall defaults over an active SSH session'
+assert_file_contains "$tmp/remote-policy-nonstandard.err" 'refusing to change firewall defaults over an active SSH session'
 if grep -Eq '^ufw:(allow|default|--force enable)|^systemctl:(enable|start)' "$FIREWALL_CALLS"; then
   printf 'FAIL: firewall mutated before refusing a remote default-policy change\n' >&2
   cat "$FIREWALL_CALLS" >&2
