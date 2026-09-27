@@ -32,7 +32,7 @@ assert config['profile_config'] == {
     },
 }, config.get('profile_config')
 
-pinned_revision = '2f2f578038b36b347837fe0b895d55de2e3da85f'
+pinned_revision = 'e62b0a5502cee940660396722170d1a81d74c638'
 custom_commands = config.get('custom_commands')
 assert isinstance(custom_commands, list), custom_commands
 assert len(custom_commands) == 1, custom_commands
