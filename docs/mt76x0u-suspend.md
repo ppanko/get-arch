@@ -14,7 +14,7 @@ NetworkManager and wpa_supplicant then fail because the resumed interface never 
 
 Current mainline still uses the same mt76x0u USB resume sequence, and the mt76 project has a long-standing open MT7610U suspend/resume report with the same `-110` timeout class. The log identifies the failure as part of the driver's resume reinitialization path, but does not identify which internal operation returned `-ETIMEDOUT`.
 
-The affected workstation has now reproduced the failure on both the regular and LTS kernels. A narrowly scoped interface unbind/rebind experiment has also recovered two controlled LTS suspend cycles. That is enough to continue testing the approach, but not enough to install it by default: the prototype has not completed an overnight cycle and is not yet safe for multiple mt76x0u adapters. get-arch therefore does not currently install a sleep hook, force a module reload, change USB power policy, or rewrite NetworkManager profiles automatically.
+The affected workstation has now reproduced the failure on both the regular and LTS kernels. A narrowly scoped interface unbind/rebind experiment initially appeared to recover two controlled LTS suspend cycles, but the second cycle left three receive pages outstanding during network page-pool teardown. The kernel reported `page_pool_release_retry() stalled pool shutdown` 60 seconds later, and the workstation hard-locked shortly afterward. The prototype is therefore unsafe and must not be installed or tested further on a working system. get-arch does not install a sleep hook, force a module reload, change USB power policy, or rewrite NetworkManager profiles automatically.
 
 Upstream references:
 
@@ -66,15 +66,15 @@ The affected USB ID `148f:761a` adapter was tested with deep S3 suspend on a Del
 
 The saved `Oliver_WiFi` profile was bound to `wlp0s20u5`. A temporary clone of that profile was bound to the deliberately wrong name `wlan0`; NetworkManager rejected activation on `wlp0s20u5` because the interface names did not match. Clearing only the clone's `connection.interface-name` allowed immediate activation on `wlp0s20u5`. The clone was then deleted and the original profile was restored unchanged. This confirms the interface binding as a separate recovery barrier when a re-enumerated adapter cannot reclaim its original name.
 
-An experimental system-sleep hook then unbound only USB interface `1-5:1.0` from the `mt76x0u` driver before suspend and rebound that same interface after resume. Two controlled LTS cycles completed without `resume error -110`; the driver reprobed and NetworkManager reconnected the original profile automatically in about five seconds. This works by avoiding the driver's failing resume callback and taking the normal disconnect/probe path instead.
+An experimental system-sleep hook then unbound only USB interface `1-5:1.0` from the `mt76x0u` driver before suspend and rebound that same interface after resume. Both controlled cycles avoided `resume error -110`; the driver reprobed and NetworkManager reconnected the original profile automatically in about five seconds. The second cycle nevertheless failed asynchronously. Exactly 60 seconds after the rebind, the kernel logged:
 
-The experiment does not yet justify a default get-arch workaround. Before shipping it, repeat an overnight cycle and harden the hook so it:
+```text
+page_pool_release_retry() stalled pool shutdown: id 10, 3 inflight 60 sec
+```
 
-- verifies USB ID `148f:761a` before changing a binding;
-- records and restores the exact matching interface without affecting another mt76x0u adapter;
-- handles no-device, multiple-device, bind-failure, and stale-state cases safely;
-- runs only for suspend actions for which it has been tested;
-- has regression coverage that uses fake sysfs state rather than touching host hardware.
+Linux emits this warning when a network page pool is being destroyed but packet pages remain outstanding, then schedules another cleanup attempt. The relevant Linux 6.18 implementation is in [`net/core/page_pool.c`](https://github.com/torvalds/linux/blob/v6.18/net/core/page_pool.c#L1114-L1140). The workstation hard-locked roughly two minutes after the warning and required a forced reboot. This event did not contain the separate `Bad page map` signature seen in the workstation's earlier memory-corruption crashes.
+
+The warning proves that the detach/rebind path did not complete cleanly. It does not prove by itself that the outstanding receive pages caused the later hard lock, but the result is sufficient to reject the workaround. The hook was disabled and suspend was disabled on the affected workstation pending a driver fix or replacement network hardware.
 
 ## Test re-enumeration recovery without broad profile changes
 
@@ -113,13 +113,13 @@ If `OLD_IFNAME` was originally empty, leave the property unset instead of writin
 
 ## What not to automate yet
 
-Do not add any of the following to get-arch until they have been validated repeatedly on the affected hardware:
+Do not add any of the following to get-arch:
 
 - a systemd sleep hook that unloads/reloads `mt76x0u`;
-- a broad interface unbind/rebind hook that affects mt76x0u devices other than USB ID `148f:761a`;
+- an interface unbind/rebind hook, including one scoped to USB ID `148f:761a`;
 - USB autosuspend or power-control overrides;
 - generic NetworkManager profile rewrites;
 - forced interface renaming;
 - a blanket kernel-module reset affecting unrelated mt76 devices.
 
-A get-arch workaround should be hardware-scoped and should only be added after repeated suspend/resume tests show that it actually prevents or safely recovers the failure.
+A future get-arch workaround requires a different recovery mechanism and repeated testing that shows both successful resume and clean asynchronous resource teardown. A short successful reconnect is insufficient validation.
