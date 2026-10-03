@@ -8,7 +8,7 @@ from pathlib import Path
 
 def generate_disk_config(device_path: Path) -> dict:
     from archinstall.lib.disk.device_handler import device_handler
-    from archinstall.lib.disk.disk_menu import suggest_single_disk_layout
+    from archinstall.lib.disk.default_layouts import suggest_single_disk_layout
     from archinstall.lib.models.device import DiskLayoutConfiguration, DiskLayoutType, FilesystemType
 
     device = device_handler.get_device(device_path)

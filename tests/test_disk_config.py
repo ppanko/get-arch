@@ -16,6 +16,7 @@ def install_fake_archinstall():
     lib = types.ModuleType('archinstall.lib')
     disk = types.ModuleType('archinstall.lib.disk')
     handler_module = types.ModuleType('archinstall.lib.disk.device_handler')
+    default_layouts_module = types.ModuleType('archinstall.lib.disk.default_layouts')
     menu_module = types.ModuleType('archinstall.lib.disk.disk_menu')
     models = types.ModuleType('archinstall.lib.models')
     device_module = types.ModuleType('archinstall.lib.models.device')
@@ -64,7 +65,7 @@ def install_fake_archinstall():
             }
 
     handler_module.device_handler = Handler()
-    menu_module.suggest_single_disk_layout = suggest_single_disk_layout
+    default_layouts_module.suggest_single_disk_layout = suggest_single_disk_layout
     device_module.DiskLayoutConfiguration = FakeDiskLayoutConfiguration
     device_module.DiskLayoutType = FakeDiskLayoutType
     device_module.FilesystemType = FakeFilesystemType
@@ -73,6 +74,7 @@ def install_fake_archinstall():
         'archinstall': archinstall,
         'archinstall.lib': lib,
         'archinstall.lib.disk': disk,
+        'archinstall.lib.disk.default_layouts': default_layouts_module,
         'archinstall.lib.disk.device_handler': handler_module,
         'archinstall.lib.disk.disk_menu': menu_module,
         'archinstall.lib.models': models,
