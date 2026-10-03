@@ -76,6 +76,14 @@ Linux emits this warning when a network page pool is being destroyed but packet 
 
 The warning proves that the detach/rebind path did not complete cleanly. It does not prove by itself that the outstanding receive pages caused the later hard lock, but the result is sufficient to reject the workaround. The hook was disabled and suspend was disabled on the affected workstation pending a driver fix or replacement network hardware.
 
+## Safe recovery after a failed resume
+
+If the adapter reaches the `mt76x0u ... resume error -110` state, the conservative recovery on the affected workstation is to save any useful logs while the system is still responsive and then reboot. A reboot restores the adapter under its normal predictable interface name and allows the existing NetworkManager profile to reconnect.
+
+Physically unplugging and reconnecting the adapter can also create a usable replacement USB device, but the new device may receive a different interface name while the failed device still owns the original name. In that case, an existing profile with `connection.interface-name` set may not activate until the original device is gone or the binding is deliberately changed. The experiment below documents how to test that secondary condition without rewriting profiles broadly.
+
+Do not use the experimental sysfs interface unbind/rebind sequence, a module reload, or a sleep hook as a recovery procedure. The controlled unbind/rebind experiment left page-pool resources outstanding and was followed by a hard lock, so it is not considered safe even when Wi-Fi appears to reconnect initially.
+
 ## Test re-enumeration recovery without broad profile changes
 
 NetworkManager documents `connection.interface-name` as a hard interface binding. When it is unset, the profile may attach to any otherwise-compatible interface. This makes the binding worth testing separately from the kernel bug.
